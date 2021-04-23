@@ -15,10 +15,12 @@
 #include "Ludum_Assets.h"
 
 #include "Ludum_Mode_Play.h"
+#include "Ludum_Mode_Splash.h"
 
 enum Game_Mode {
     GameMode_None = 0,
-    GameMode_Play
+    GameMode_Play,
+    GameMode_Splash
 };
 
 struct Game_State {
@@ -45,6 +47,7 @@ struct Game_State {
     Game_Mode mode;
     union {
         Mode_Play *play;
+        Mode_Splash *splash;
     };
 };
 
