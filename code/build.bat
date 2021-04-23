@@ -4,8 +4,8 @@ IF NOT EXIST "..\build" (mkdir "..\build")
 
 pushd "..\build" 2> NUL > NUL
 
-SET COMPILER_FLAGS=-nologo -Od -Zi -I "\Tools\SDL2\include" -DLUDUM_DEBUG=1
-SET LINKER_FLAGS=-incremental:no -LIBPATH:"\Tools\SDL2\lib" SDL2d.lib user32.lib kernel32.lib
+SET COMPILER_FLAGS=-nologo -Od -Zi -I "..\libs\SDL2\include" -DLUDUM_DEBUG=1
+SET LINKER_FLAGS=-incremental:no -LIBPATH:"..\libs\SDL2\lib" SDL2.lib user32.lib kernel32.lib
 
 
 REM OpenGL shared library
