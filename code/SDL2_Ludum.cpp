@@ -47,7 +47,7 @@ internal b32 SDL2Initialise(u32 width, u32 height, u32 display_index = 0) {
     desired.freq     = 48000;
     desired.format   = AUDIO_S16LSB;
     desired.channels = 2;
-    desired.samples  = 32;
+    desired.samples  = 512;
     desired.callback = 0;
     desired.userdata = 0;
 
