@@ -262,7 +262,7 @@ internal b32 WinInitialise() {
     // @Todo(James): We should have a configuration file to load these from so we can edit them without merge
     // conflicts and easy changes
     //
-    result = SDL2Initialise(1280, 720, 1);
+    result = SDL2Initialise(1024, 768, 1);
     return result;
 }
 
