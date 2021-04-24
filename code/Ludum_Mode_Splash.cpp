@@ -1,5 +1,6 @@
 #include <math.h>
 #include <time.h>
+#include <stdlib.h>
 internal Move_Type GetOppositeMove(Move_Type move) {
     Move_Type opp;
     switch(move) {
