@@ -208,7 +208,7 @@ internal void UpdateRenderModeSplash(Game_State *state, Game_Input *input, Draw_
         );
         DrawQuad(batch, ame, V2(0, -1.75), 3, 0, V4(1,1,1,Min(diff*2, 1)));
     }
-    if (JustPressed(controller->interact) || JustPressed(controller->action)) {
-        ModeSplash(state);
+    if (JustPressed(controller->interact) || JustPressed(controller->action) || (mode->time - mode->fade_start)>2) {
+        ModePlay(state);
     }
 }
