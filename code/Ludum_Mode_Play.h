@@ -8,6 +8,7 @@ struct Mode_Play {
     // Can be changed to whatever we need
     //
     v2 player_position;
+    Animation anim;
 };
 
 #endif  // LUDUM_MODE_PLAY_H_

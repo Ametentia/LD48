@@ -22,8 +22,8 @@ internal void LudumUpdateRender(Game_Context *context, Game_Input *input, Draw_C
     state->temp_handle = BeginTemp(state->temp);
 
     if (state->mode == GameMode_None) {
-        //ModePlay(state);
-        ModeSplash(state);
+        ModePlay(state);
+        //ModeSplash(state);
     }
 
     switch (state->mode) {

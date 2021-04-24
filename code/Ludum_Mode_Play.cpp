@@ -8,6 +8,8 @@ internal void ModePlay(Game_State *state) {
     play->temp  = state->temp;
 
     play->player_position = V2(0, 0);
+    Image_Handle enemyHandle = GetImageByName(&state->assets, "enemy");
+    play->anim = CreateAnimation(enemyHandle, 2, 1, 0.5);
 
     state->mode = GameMode_Play;
     state->play = play;
@@ -47,4 +49,5 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     }
 
     DrawQuad(batch, { 0 }, play->player_position, V2(0.5, 0.5), 0, V4(1, 0, 1, 1));
+    DrawAnimation(batch, &play->anim, dt, play->player_position, 1, 0, V4(1,1,1,1));
 }
