@@ -17,6 +17,7 @@ struct Mode_Play {
     Tile *tile_arr;
     v2 tile_size;
     f32 tile_spacing;
+    Animation player[4];
 };
 
 #endif  // LUDUM_MODE_PLAY_H_

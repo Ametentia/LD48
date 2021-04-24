@@ -218,7 +218,9 @@ internal Render_Batch CreateRenderBatch(Draw_Command_Buffer *command_buffer,
 struct Image_Handle;
 internal void DrawClear(Render_Batch *batch, v4 colour, b32 depth);
 internal void DrawQuad(Render_Batch *batch, Image_Handle image, v2 centre, v2 dim, f32 angle, v4 colour);
+internal void DrawQuad(Render_Batch *batch, Image_Handle image, v3 centre, v2 dim, f32 angle, v4 colour);
 internal void DrawQuad(Render_Batch *batch, Image_Handle image, v2 centre, f32 scale, f32 angle, v4 colour);
+internal void DrawQuad(Render_Batch *batch, Image_Handle image, v3 cetnre, f32 scale, f32 angle, v4 colour);
 internal void DrawQuadOutline(Render_Batch *batch, v2 centre, v2 dim, f32 angle, v4 colour, f32 thickness);
 internal void DrawLine(Render_Batch *batch, v2 start, v2 end, v4 start_colour, v4 end_colour, f32 thickness);
 internal void DrawCircle(Render_Batch *batch, Image_Handle image,
@@ -233,7 +235,7 @@ internal Animation CreateAnimation(Image_Handle image, u32 rows, u32 columns, f3
 // Update and draw the animation with the specified parameters
 //
 internal void DrawAnimation(Render_Batch *batch, Animation *anim, f32 delta_time,
-        v2 centre, f32 scale, f32 angle, v4 colour);
+        v3 centre, v2 scale, f32 angle, v4 colour);
 
 // Ignore me :)
 // This needs to be forward declared for the asset system because C++ is a crap langauge

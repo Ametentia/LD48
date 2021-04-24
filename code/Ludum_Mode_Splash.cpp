@@ -1,6 +1,3 @@
-#include <math.h>
-#include <time.h>
-#include <stdlib.h>
 internal Move_Type GetOppositeMove(Move_Type move) {
     Move_Type opp;
     switch(move) {
@@ -23,7 +20,7 @@ internal Move_Type GetOppositeMove(Move_Type move) {
     };
     return opp;
 }
-internal Move FindMove(Block blocks[], v2 empty, Move_Type lastMove) {
+internal Move FindMove(Block blocks[], v2 empty, Move_Type lastMove, Random *random) {
     Move moves[8] = {};
     u8 moveCount = 0;
     for(u8 i = 0; i < 8; i++) {
@@ -52,7 +49,7 @@ internal Move FindMove(Block blocks[], v2 empty, Move_Type lastMove) {
             moveCount++;
         }
     }
-    long randNum = rand();
+    u64 randNum = (NextRandom(random));
     return moves[randNum % moveCount];
 }
 
@@ -88,7 +85,6 @@ internal void ModeSplash(Game_State *state) {
     Clear(&state->mode_alloc);
 
     Mode_Splash *splash = AllocStruct(&state->mode_alloc, Mode_Splash);
-    srand(time(NULL));
     splash->alloc = &state->mode_alloc;
     splash->temp  = state->temp;
     splash->steps = 16;
@@ -96,6 +92,7 @@ internal void ModeSplash(Game_State *state) {
     splash->timer = 0;
     splash->move_time = 0.07;
     splash->fade_start = splash->move_time*(splash->steps+3);
+    splash->random = RandomSeed(time(NULL));
     for(u8 i = 0; i < 8; i++) {
         u8 mid_skipped = i;
         if(i > 3){
@@ -109,7 +106,7 @@ internal void ModeSplash(Game_State *state) {
     v2 empty = V2(1, 1);
     Move_Type lastMove = MoveType_None;
     for(u8 i = 0; i < splash->steps; i++) {
-        Move move = FindMove(splash->blocks, empty, lastMove);
+        Move move = FindMove(splash->blocks, empty, lastMove, &splash->random);
         Move reverse = {};
         if(i + 2 == splash->steps) {
             splash->lastPos = splash->blocks[move.index].pos;
@@ -172,7 +169,7 @@ internal void UpdateRenderModeSplash(Game_State *state, Game_Input *input, Draw_
             "slide1",
             "slide2"
         };
-        Sound_Handle slide = GetSoundByName(&state->assets, sounds[rand() % 2]);
+        Sound_Handle slide = GetSoundByName(&state->assets, sounds[NextRandom(&mode->random) % 2]);
         PlaySound(state, slide, 0.2f, 0);
     }
 

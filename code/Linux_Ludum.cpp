@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include <stdio.h>
+#include <time.h>
 
 #include <glob.h>
 

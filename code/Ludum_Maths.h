@@ -1,6 +1,47 @@
 #if !defined(LUDUM_MATHS_H_)
 #define LUDUM_MATHS_H_
 
+struct Random {
+    u64 state;
+};
+
+inline Random RandomSeed(u64 seed) {
+    Random result = { seed };
+    return result;
+}
+
+// Simple XorShift64
+//
+inline u64 NextRandom(Random *random) {
+    u64 result = random->state;
+    result ^= (result << 13);
+    result ^= (result >> 7);
+    result ^= (result << 17);
+
+    random->state = result;
+    return result;
+}
+
+inline f32 RandomUnilateral(Random *random) {
+    f32 result = NextRandom(random) / cast(f32) U64_MAX;
+    return result;
+}
+
+inline u32 RandomBetween(Random *random, u32 min, u32 max) {
+    u32 result = min + cast(u32) (RandomUnilateral(random) * (max - min));
+    return result;
+}
+
+inline f32 RandomBetween(Random *random, f32 min, f32 max) {
+    f32 result = min + (RandomUnilateral(random) * (max - min));
+    return result;
+}
+
+inline u32 RandomChoice(Random *random, u32 choices) {
+    u32 result = NextRandom(random) % choices;
+    return result;
+}
+
 inline u32 ABGRPack(v4 colour) {
     u32 result =
         ((cast(u8) (255.0f * colour.a)) << 24) |
@@ -519,6 +560,62 @@ inline v3 operator*(mat4 a, v3 b) {
     return result;
 }
 
+inline mat4 XRotation(f32 angle) {
+    f32 s = Sin(angle);
+    f32 c = Cos(angle);
+
+    mat4 result = {
+        1, 0,  0, 0,
+        0, c, -s, 0,
+        0, s,  c, 0,
+        0, 0,  0, 0
+    };
+
+    return result;
+}
+
+inline mat4 YRotation(f32 angle) {
+    f32 s = Sin(angle);
+    f32 c = Cos(angle);
+
+    mat4 result = {
+         c, 0,  s, 0,
+         0, 1,  0, 0,
+        -s, 0,  c, 0,
+         0, 0,  0, 0
+    };
+
+    return result;
+}
+
+inline mat4 ZRotation(f32 angle) {
+    f32 s = Sin(angle);
+    f32 c = Cos(angle);
+
+    mat4 result = {
+        c, -s, 0, 0,
+        s,  c, 0, 0,
+        0,  0, 1, 0,
+        0,  0, 0, 0
+    };
+
+    return result;
+}
+
+inline v3 GetRow(mat4 a, u32 row) {
+    v3 result = V3(a.r[row]);
+    return result;
+}
+
+inline v3 GetColumn(mat4 a, u32 col) {
+    v3 result;
+    result.x = a.e[0][col];
+    result.y = a.e[1][col];
+    result.z = a.e[2][col];
+
+    return result;
+}
+
 inline mat4 Rows3x3(v3 x, v3 y, v3 z) {
     mat4 result = {
         x.x, x.y, x.z, 0,
@@ -542,7 +639,7 @@ inline mat4 Columns3x3(v3 x, v3 y, v3 z) {
 }
 
 inline mat4_inv OrthographicProjection(f32 aspect, f32 near, f32 far) {
-    f32 a = 1.0f;
+    f32 a = 1.0;
     f32 b = -aspect;
 
     f32 c = 2.0f / (near - far);
