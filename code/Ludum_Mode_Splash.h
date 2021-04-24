@@ -22,6 +22,7 @@ struct Move {
 struct Mode_Splash {
     Memory_Allocator *alloc;
     Memory_Allocator *temp;
+    Random random;
     
     u8 steps;
     f32 time;
