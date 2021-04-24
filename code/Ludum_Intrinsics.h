@@ -6,6 +6,7 @@
 #define Min(a, b) (((a) < (b)) ? (a) : (b))
 #define Max(a, b) (((a) > (b)) ? (a) : (b))
 #define Abs(a) (((a) < 0) ? -(a) : (a))
+#define Lerp(begin, end, alpha) (((alpha) * begin) + ((1 - alpha) * end))
 
 inline f32 Sqrt(f32 x) {
     f32 result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set1_ps(x)));
