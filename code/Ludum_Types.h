@@ -172,6 +172,9 @@ struct rect3 {
 #define Radians(x) ((x) * (PI32 / 180.0f))
 #define Degrees(x) ((x) * (180.0f / PI32))
 
+#define U64_MAX (UINT64_MAX)
+#define U32_MAX (UINT32_MAX)
+
 #if ARCH_AMD64
     #if COMPILER_MSVC
         #include <intrin.h>
