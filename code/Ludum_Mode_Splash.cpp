@@ -175,8 +175,8 @@ internal void UpdateRenderModeSplash(Game_State *state, Game_Input *input, Draw_
         PlaySound(state, slide, 0.2f, 0);
     }
 
-    Image_Handle texture = GetImageByName(&state->assets, "Logo");
     f32 size = 1.1f;
+    Image_Handle texture = GetImageByName(&state->assets, "Logo");
     for(u8 i = 0; i < 8; i++) {
         f32 x = mode->blocks[i].pos.x;
         f32 y = mode->blocks[i].pos.y;
@@ -191,6 +191,7 @@ internal void UpdateRenderModeSplash(Game_State *state, Game_Input *input, Draw_
         DrawLogoSection(texture, batch, 3, blockX, blockY, V2(-size + x * size, size - y*size), V2(size, size));
     }
     if(mode->time > mode->fade_start) {
+        Image_Handle ame = GetImageByName(&state->assets, "ametentia");
         if(!mode->done) {
             Sound_Handle snap = GetSoundByName(&state->assets, "snap");
             PlaySound(state, snap, 0.4, 0);
@@ -205,6 +206,7 @@ internal void UpdateRenderModeSplash(Game_State *state, Game_Input *input, Draw_
             V2(size, size),
             V4(1,1,1, Min(diff*2, 1))
         );
+        DrawQuad(batch, ame, V2(0, -1.75), 3, 0, V4(1,1,1,Min(diff*2, 1)));
     }
     if (JustPressed(controller->interact) || JustPressed(controller->action)) {
         ModeSplash(state);

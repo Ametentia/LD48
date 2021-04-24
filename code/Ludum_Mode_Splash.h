@@ -28,7 +28,7 @@ struct Mode_Splash {
     f32 fade_start;
     f32 move_time;
     Block blocks[8];
-    Move moves[160];
+    Move moves[16];
     f32 timer;
     v2 lastPos;
     u8 done;
