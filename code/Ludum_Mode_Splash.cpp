@@ -55,26 +55,31 @@ internal Move FindMove(Block blocks[], v2 empty, Move_Type lastMove) {
     return moves[randNum % moveCount];
 }
 
-internal v2 ApplyMove(Block blocks[], Move move) {
-    v2 empty = blocks[move.index].pos;
+internal v2 PredictMove(Block blocks[], Move move) {
+    v2 pos = blocks[move.index].pos;
     switch(move.move) {
         case MoveType_Up: {
-            blocks[move.index].pos.y -= 1;
+            pos.y -= 1;
         }
         break;
         case MoveType_Down: {
-            blocks[move.index].pos.y += 1;
+            pos.y += 1;
         }
         break;
         case MoveType_Right: {
-            blocks[move.index].pos.x += 1;
+            pos.x += 1;
         }
         break;
         case MoveType_Left: {
-            blocks[move.index].pos.x -= 1;
+            pos.x -= 1;
         }
         break;
     };
+    return pos;
+}
+internal v2 ApplyMove(Block blocks[], Move move) {
+    v2 empty = blocks[move.index].pos;
+    blocks[move.index].pos = PredictMove(blocks, move);
     return empty;
 }
 
@@ -85,11 +90,12 @@ internal void ModeSplash(Game_State *state) {
     srand(time(NULL));
     splash->alloc = &state->mode_alloc;
     splash->temp  = state->temp;
-    splash->steps = 10;
+    splash->steps = 16;
     splash->time = 0;
     splash->timer = 0;
-    splash->fade_start = 0.1*splash->steps + 0.2;
-    for(u8 i = 0; i < 254; i++) {
+    splash->move_time = 0.07;
+    splash->fade_start = splash->move_time*(splash->steps+3);
+    for(u8 i = 0; i < 8; i++) {
         u8 mid_skipped = i;
         if(i > 3){
             mid_skipped++;
@@ -104,6 +110,9 @@ internal void ModeSplash(Game_State *state) {
     for(u8 i = 0; i < splash->steps; i++) {
         Move move = FindMove(splash->blocks, empty, lastMove);
         Move reverse = {};
+        if(i + 2 == splash->steps) {
+            splash->lastPos = splash->blocks[move.index].pos;
+        }
         reverse.move = GetOppositeMove(move.move);
         reverse.index = move.index;
         splash->moves[i] = reverse;
@@ -152,7 +161,7 @@ internal void UpdateRenderModeSplash(Game_State *state, Game_Input *input, Draw_
     f32 dt = input->delta_time;
     mode->time += dt;
     mode->timer += dt;
-    if(mode->timer > 0.1 && mode->steps != 255) {
+    if(mode->timer > mode->move_time && mode->steps != 255) {
         Move move = mode->moves[mode->steps];
         ApplyMove(mode->blocks, move);
         mode->steps -= 1;
@@ -169,13 +178,24 @@ internal void UpdateRenderModeSplash(Game_State *state, Game_Input *input, Draw_
     Image_Handle texture = GetImageByName(&state->assets, "Logo");
     f32 size = 1.1f;
     for(u8 i = 0; i < 8; i++) {
-        u8 x = mode->blocks[i].pos.x;
-        u8 y = mode->blocks[i].pos.y;
-        u8 blockX = mode->blocks[i].blockPos.x;
-        u8 blockY = mode->blocks[i].blockPos.y;
+        f32 x = mode->blocks[i].pos.x;
+        f32 y = mode->blocks[i].pos.y;
+        f32 blockX = mode->blocks[i].blockPos.x;
+        f32 blockY = mode->blocks[i].blockPos.y;
+        if(i == mode->moves[mode->steps].index) {
+            v2 prediciton = PredictMove(mode->blocks, mode->moves[mode->steps]);
+            f32 alpha = mode->timer/mode->move_time;
+            x = Lerp(prediciton.x, x, alpha);
+            y = Lerp(prediciton.y, y, alpha);
+        }
         DrawLogoSection(texture, batch, 3, blockX, blockY, V2(-size + x * size, size - y*size), V2(size, size));
     }
     if(mode->time > mode->fade_start) {
+        if(!mode->done) {
+            Sound_Handle snap = GetSoundByName(&state->assets, "snap");
+            PlaySound(state, snap, 0.4, 0);
+            mode->done = 1;
+        }
         f32 diff = mode->time - mode->fade_start;
         DrawLogoSection(
             texture,
@@ -183,7 +203,7 @@ internal void UpdateRenderModeSplash(Game_State *state, Game_Input *input, Draw_
             3, 1, 1,
             V2(0, 0),
             V2(size, size),
-            V4(1,1,1, Min(diff * 1.1, 1))
+            V4(1,1,1, Min(diff*2, 1))
         );
     }
     if (JustPressed(controller->interact) || JustPressed(controller->action)) {
