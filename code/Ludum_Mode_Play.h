@@ -18,6 +18,7 @@ struct Mode_Play {
     u8 in_battle;
     Temporary_Memory battle_mem;
     Mode_Battle *battle;
+
     v2 map_size;
     Tile *tile_arr;
     v2 tile_size;
