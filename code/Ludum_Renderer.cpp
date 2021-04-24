@@ -196,29 +196,37 @@ internal void DrawQuad(Render_Batch *batch, Texture_Handle texture,
     }
 }
 
+
 internal void DrawQuad(Render_Batch *batch, Image_Handle image,
-        v2 centre, v2 dim, f32 angle = 0, v4 colour = V4(1, 1, 1, 1))
+        v3 centre, v2 dim, f32 angle = 0, v4 colour = V4(1, 1, 1, 1))
 {
     v2 half_dim = 0.5f * dim;
 
     u32 packed_colour = ABGRPack(colour);
     v2 rot = Arm2(angle);
 
-    v2 p0 = centre + Rotate(V2(-half_dim.x, half_dim.y), rot);
-    v2 p1 = centre + Rotate(-half_dim, rot);
-    v2 p2 = centre + Rotate(V2(half_dim.x, -half_dim.y), rot);
-    v2 p3 = centre + Rotate(half_dim, rot);
+    v3 p0 = centre + V3(Rotate(V2(-half_dim.x, half_dim.y), rot));
+    v3 p1 = centre + V3(Rotate(-half_dim, rot));
+    v3 p2 = centre + V3(Rotate(V2(half_dim.x, -half_dim.y), rot));
+    v3 p3 = centre + V3(Rotate(half_dim, rot));
 
     Texture_Handle texture = GetImageData(batch->assets, image);
     DrawQuad(batch, texture,
-            V3(p0), V2(0, 0), packed_colour,
-            V3(p1), V2(0, 1), packed_colour,
-            V3(p2), V2(1, 1), packed_colour,
-            V3(p3), V2(1, 0), packed_colour);
+            p0, V2(0, 0), packed_colour,
+            p1, V2(0, 1), packed_colour,
+            p2, V2(1, 1), packed_colour,
+            p3, V2(1, 0), packed_colour);
 }
 
 internal void DrawQuad(Render_Batch *batch, Image_Handle image,
-        v2 centre, f32 scale, f32 angle, v4 colour = V4(1, 1, 1, 1))
+        v2 centre, v2 dim, f32 angle = 0, v4 colour = V4(1, 1, 1, 1))
+{
+    DrawQuad(batch, image, V3(centre), dim, angle, colour);
+}
+
+
+internal void DrawQuad(Render_Batch *batch, Image_Handle image,
+        v3 centre, f32 scale, f32 angle, v4 colour = V4(1, 1, 1, 1))
 {
     Amt_Image *info = GetImageInfo(batch->assets, image);
 
@@ -235,6 +243,12 @@ internal void DrawQuad(Render_Batch *batch, Image_Handle image,
     dim *= scale;
 
     DrawQuad(batch, image, centre, dim, angle, colour);
+}
+
+internal void DrawQuad(Render_Batch *batch, Image_Handle image,
+        v2 centre, f32 scale, f32 angle, v4 colour = V4(1, 1, 1, 1))
+{
+    DrawQuad(batch, image, V3(centre), scale, angle, colour);
 }
 
 internal void DrawCircle(Render_Batch *batch, Image_Handle image,
@@ -342,7 +356,7 @@ internal void DrawQuadOutline(Render_Batch *batch, v2 centre, v2 dim,
 
 
 internal Animation CreateAnimation(Image_Handle image, u32 rows, u32 columns, f32 time_per_frame) {
-    Animation result;
+    Animation result = {};
     result.image = image;
 
     result.time_per_frame = time_per_frame;
@@ -354,15 +368,17 @@ internal Animation CreateAnimation(Image_Handle image, u32 rows, u32 columns, f3
     return result;
 }
 
-internal void DrawAnimation(Render_Batch *batch, Animation *anim, f32 delta_time,
-        v2 centre, f32 scale, f32 angle = 0, v4 colour = V4(1, 1, 1, 1))
-{
+internal void UpdateAnimation(Animation *anim, f32 delta_time) {
     anim->time += delta_time;
     if (anim->time >= anim->time_per_frame) {
         anim->time = 0;
         anim->current_frame = (anim->current_frame + 1) % anim->total_frames;
     }
+}
 
+internal void DrawAnimation(Render_Batch *batch, Animation *anim, f32 delta_time,
+        v3 centre, v2 scale, f32 angle = 0, v4 colour = V4(1, 1, 1, 1))
+{
     Amt_Image *info = GetImageInfo(batch->assets, anim->image);
 
     v2 dim = V2(info->width / cast(f32) anim->rows, info->height / cast(f32) anim->columns);
@@ -381,10 +397,10 @@ internal void DrawAnimation(Render_Batch *batch, Animation *anim, f32 delta_time
     u32 packed_colour = ABGRPack(colour);
     v2 rot = Arm2(angle);
 
-    v3 p0 = V3(centre + Rotate(V2(-half_dim.x, half_dim.y), rot));
-    v3 p1 = V3(centre + Rotate(-half_dim, rot));
-    v3 p2 = V3(centre + Rotate(V2(half_dim.x, -half_dim.y), rot));
-    v3 p3 = V3(centre + Rotate(half_dim, rot));
+    v3 p0 = centre + V3(Rotate(V2(-half_dim.x, half_dim.y), rot));
+    v3 p1 = centre + V3(Rotate(-half_dim, rot));
+    v3 p2 = centre + V3(Rotate(V2(half_dim.x, -half_dim.y), rot));
+    v3 p3 = centre + V3(Rotate(half_dim, rot));
 
     v2 uv_size = V2(1.0f / cast(f32) anim->rows, 1.0f / cast(f32) anim->columns);
     v2 uv_min  = V2(uv_size.x * (anim->current_frame / anim->columns),
