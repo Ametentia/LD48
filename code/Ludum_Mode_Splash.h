@@ -26,9 +26,12 @@ struct Mode_Splash {
     u8 steps;
     f32 time;
     f32 fade_start;
+    f32 move_time;
     Block blocks[8];
-    Move moves[10];
+    Move moves[16];
     f32 timer;
+    v2 lastPos;
+    u8 done;
 };
 
 #endif  // LUDUM_MODE_SPLASH_H_
