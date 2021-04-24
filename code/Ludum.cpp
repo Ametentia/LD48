@@ -2,6 +2,7 @@
 #include "Ludum_Renderer.cpp"
 
 #include "Ludum_Mode_Play.cpp"
+#include "Ludum_Mode_Splash.cpp"
 
 internal void LudumUpdateRender(Game_Context *context, Game_Input *input, Draw_Command_Buffer *draw_buffer) {
     Game_State *state = context->state;
@@ -21,12 +22,17 @@ internal void LudumUpdateRender(Game_Context *context, Game_Input *input, Draw_C
     state->temp_handle = BeginTemp(state->temp);
 
     if (state->mode == GameMode_None) {
-        ModePlay(state);
+        //ModePlay(state);
+        ModeSplash(state);
     }
 
     switch (state->mode) {
         case GameMode_Play: {
             UpdateRenderModePlay(state, input, draw_buffer);
+        }
+        break;
+        case GameMode_Splash: {
+            UpdateRenderModeSplash(state, input, draw_buffer);
         }
         break;
     }
