@@ -11,7 +11,7 @@ internal void ModePlay(Game_State *state) {
     play->map_size = V2(10,12);
     play->tile_arr = AllocArray(play->alloc, Tile, play->map_size.x*play->map_size.y);
     play->tile_size = V2(0.5,0.5);
-    play->tile_spacing = 0.01;
+    play->tile_spacing = 0;
     play->is_shop = true;
     play->shop_data.shop_tiles = AllocArray(play->alloc, Shop_Tile, 9);
     play->shop_data.tile_indexes = AllocArray(play->alloc, umm, 9);
