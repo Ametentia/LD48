@@ -81,7 +81,6 @@ internal void LudumOutputSoundSamples(Game_Context *context, Sound_Buffer *buffe
             }
             else {
                 *sound_ptr = sound->next;
-
                 sound->next = state->free_playing_sounds;
                 state->free_playing_sounds = sound;
             }

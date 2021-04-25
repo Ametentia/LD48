@@ -85,7 +85,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         play->battle_mem = BeginTemp(play->alloc);
         play->in_battle = 1;
         play->battle = AllocStruct(play->alloc, Mode_Battle);
-        ModeBattle(state, play->battle);
+        ModeBattle(state, play->battle, &play->battle_mem);
     }
 
     if (IsPressed(input->mouse_buttons[MouseButton_Left])) {

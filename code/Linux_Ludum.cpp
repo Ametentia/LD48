@@ -236,7 +236,7 @@ internal b32 LinuxInitialise() {
     Platform.ReadFile      = LinuxReadFile;
     Platform.WriteFile     = LinuxWriteFile;
 
-    result = SDL2Initialise(1280, 720, 0);
+    result = SDL2Initialise(1024, 768, 0);
     return result;
 }
 
