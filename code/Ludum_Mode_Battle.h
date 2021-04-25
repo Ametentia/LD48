@@ -16,6 +16,9 @@ struct Call {
     v2 pos[40];
     u8 visable[20];
     s8 beat_shown;
+    s8 hits;
+    const char *call_asset_name;
+    const char *note_asset_names[4];
 };
 
 struct CallSet {
