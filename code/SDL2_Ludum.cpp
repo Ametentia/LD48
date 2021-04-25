@@ -32,7 +32,7 @@ internal b32 SDL2Initialise(u32 width, u32 height, u32 display_index = 0) {
     u32 x = SDL_WINDOWPOS_CENTERED_DISPLAY(display_index);
     u32 y = SDL_WINDOWPOS_CENTERED_DISPLAY(display_index);
 
-    global_window = SDL_CreateWindow("Ludum Dare", x, y, width, height, window_flags);
+    global_window = SDL_CreateWindow("Orpheus", x, y, width, height, window_flags);
     if (!global_window) {
         // @Todo(James): Logging...
         //
