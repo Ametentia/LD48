@@ -2,13 +2,11 @@
 #define LUDUM_MODE_PLAY_H_
 #include "Ludum_Mode_Battle.h"
 
-struct Tile {
-    v2 pos;
-    Image_Handle texture;
-};
 struct Mode_Play {
     Memory_Allocator *alloc;
     Memory_Allocator *temp;
+
+    v3 camera_pos;
 
     // Can be changed to whatever we need
     //
@@ -19,6 +17,8 @@ struct Mode_Play {
     u8 in_battle;
     Temporary_Memory battle_mem;
     Mode_Battle *battle;
+
+    World world;
 
     v2 map_size;
     Tile *tile_arr;

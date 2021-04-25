@@ -1,6 +1,8 @@
 #include "Ludum_Assets.cpp"
 #include "Ludum_Renderer.cpp"
 
+#include "Ludum_World.cpp"
+
 #include "Ludum_Mode_Play.cpp"
 #include "Ludum_Mode_Splash.cpp"
 

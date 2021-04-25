@@ -283,7 +283,7 @@ internal void SDL2OutputSounds(Game_Context *context, Sound_Buffer *sound_buffer
     sound_buffer->sample_count = frame_sample_size / sizeof(s16);
     LudumOutputSoundSamples(context, sound_buffer);
 
-    SDL_QueueAudio(global_audio_device, sound_buffer->samples, sound_buffer->sample_count * sizeof(s16));
+    SDL_QueueAudio(global_audio_device, sound_buffer->samples, frame_sample_size);
 }
 
 internal u64 SDL2GetCurrentTicks() {

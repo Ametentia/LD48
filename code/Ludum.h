@@ -14,9 +14,12 @@
 
 #include "Ludum_Assets.h"
 
+#include "Ludum_World.h"
+
 #include "Ludum_Mode_Play.h"
 #include "Ludum_Mode_Splash.h"
 #include "Ludum_Mode_Battle.h"
+
 
 enum Game_Mode {
     GameMode_None = 0,

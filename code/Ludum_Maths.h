@@ -721,4 +721,22 @@ inline mat4_inv CameraTransform(v3 x, v3 y, v3 z, v3 p) {
     return result;
 }
 
+inline b32 Overlaps(rect2 a, rect2 b) {
+    b32 result =
+        (a.max.x > b.min.x) &&
+        (a.min.x < b.max.x) &&
+        (a.max.y > b.min.y) &&
+        (a.min.y < b.max.y);
+
+    return result;
+}
+
+inline b32 Contains(rect2 a, v2 p) {
+    b32 result =
+        (a.min.x < p.x) && (a.max.x > p.x)  &&
+        (a.min.y < p.y) && (a.max.y > p.y);
+
+    return result;
+}
+
 #endif  // LUDUM_MATHS_H_
