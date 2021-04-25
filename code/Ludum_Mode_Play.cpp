@@ -12,11 +12,19 @@ internal void ModePlay(Game_State *state) {
     play->tile_arr = AllocArray(play->alloc, Tile, play->map_size.x*play->map_size.y);
     play->tile_size = V2(0.5,0.5);
     play->tile_spacing = 0.01;
+    play->is_shop = true;
+    play->shop_data.shop_tiles = AllocArray(play->alloc, Shop_Tile, 9);
+    play->shop_data.tile_indexes = AllocArray(play->alloc, umm, 9);
+    
     play->player[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.23);
     play->player[1] = CreateAnimation(GetImageByName(&state->assets, "backward_walk"), 4, 1, 0.23);
     play->player[2] = CreateAnimation(GetImageByName(&state->assets, "right_walk"),    2, 1, 0.23);
     play->player[3] = CreateAnimation(GetImageByName(&state->assets, "left_walk"),     2, 1, 0.23);
+    play->last_anim = &play->player[0];
 
+    state->mode = GameMode_Play;
+    state->play = play;
+    GenerateShop(state, play);
     Random rng = RandomSeed(time(0));
     Image_Handle handles[] = {
         { 0 },
@@ -26,28 +34,93 @@ internal void ModePlay(Game_State *state) {
         GetImageByName(&state->assets, "object_00"),
         GetImageByName(&state->assets, "object_01")
     };
-
     play->last_anim = &play->player[0];
-
     for(umm i = 0; i < play->map_size.x; i++){
         for(umm j = 0; j <play->map_size.y; j++){
             play->tile_arr[i*(umm)play->map_size.x+j].texture = handles[RandomChoice(&rng, ArrayCount(handles))];
         }
     }
+}
 
-    state->mode = GameMode_Play;
-    state->play = play;
+internal void GenerateShop(Game_State *state, Mode_Play *play){
+    Shop_Tile *tiles_arr = AllocArray(play->alloc, Shop_Tile, 4);
+    tiles_arr[0] = {
+        V2(1,1),
+        {0},
+        GetImageByName(&state->assets, "shop_tile"),
+        0,
+        0.2f
+    };
+    tiles_arr[1] = {
+        V2(1,1),
+        GetImageByName(&state->assets, "apollo_amulet"),
+        GetImageByName(&state->assets, "shop_tile"),
+        10,
+        0.3f
+    };
+    tiles_arr[2] = {
+        V2(1,1),
+        GetImageByName(&state->assets, "extra_string"),
+        GetImageByName(&state->assets, "shop_tile"),
+        10,
+        0.4f
+    };
+    tiles_arr[3] = {
+        V2(1,1),
+        GetImageByName(&state->assets, "string_reinforcement"),
+        GetImageByName(&state->assets, "shop_tile"),
+        10,
+        0.2f
+    };
+
+    Random rng = RandomSeed(time(0));
+    v2 shop_tiles_grid = V2(3,3);
+    umm items = 0;
+
+    for(umm i = 0; i < shop_tiles_grid.x; i++){
+        for(umm j = 0; j < shop_tiles_grid.y; j++){
+            play->shop_data.tile_indexes[i*(umm)shop_tiles_grid.x+j] = ((play->map_size.x/2)-1+i)*play->map_size.x + (play->map_size.y/2)-1+j;
+            if(items < 5){
+                umm rand = RandomBetween(&rng, 0U, 3U);
+                play->shop_data.shop_tiles[i*3+j] = tiles_arr[rand];
+                if(rand > 0){
+                    items++;
+                }
+            }
+            else{
+                play->shop_data.shop_tiles[i*3+j] = tiles_arr[0];
+            }
+        }
+    }
+}
+
+// Returns if an index is in the shop's tiles
+//
+internal bool InShop(umm index, Mode_Play *play){
+    for(umm i = 0; i < 9; i++){
+        if(index == play->shop_data.tile_indexes[i]){
+            return true;
+        }
+    }
+    return false;
 }
 
 // Draw map based on size, tile dimensions and tile spacing
 //
 internal void DrawMap(Render_Batch *batch, Mode_Play *play, v2 size, v2 tile_dims, f32 spacing){
-
+    umm shop_tile_count = 0;
     for(umm i = 0; i < size.x; i++){
         for(umm j = 0; j < size.y; j++){
             Image_Handle texture = play->tile_arr[i*(umm)play->map_size.x+j].texture;
-            DrawQuad(batch, {0}, V2(i*(tile_dims.x+spacing), j*(tile_dims.x+spacing)), V2(tile_dims.x,tile_dims.y), 0, V4(196/255.0, 240/255.0, 194/255.0, 1));
-            if(IsValid(texture)){
+            DrawQuad(batch, {0}, V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing)), V2(tile_dims.x,tile_dims.y), 0, V4(196/255.0, 240/255.0, 194/255.0, 1));
+            if(play->is_shop && InShop(i*(umm)size.x+j, play)){
+                DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_count].bg_texture, V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing)), V2(tile_dims.x,tile_dims.y));
+                if(IsValid(play->shop_data.shop_tiles[shop_tile_count].tile.texture)){
+                    DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_count].tile.texture, V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing)), V2(tile_dims.x,tile_dims.y));
+                }
+                shop_tile_count++;
+            }
+            else if(IsValid(texture)){
                 DrawQuad(batch, texture, V2(i*(tile_dims.x+spacing), j*(tile_dims.x+spacing)), V2(tile_dims.x,tile_dims.y));
             }
             play->tile_arr[i*(umm)size.x+j].pos = V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing));
