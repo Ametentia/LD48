@@ -22,7 +22,7 @@ internal void ModeBattle(Game_State *state, Mode_Battle *battle, Temporary_Memor
         {
             {
                 {0,0.5,1,1.5,2},
-                {Button_Up, Button_Down,Button_Up, Button_Down, Button_Up},
+                {Button_Up, Button_Up, Button_Up, Button_Down, Button_Up},
                 5,
                 4,
                 {},
@@ -57,7 +57,7 @@ internal s8 beatCheck(f32 bpm, Call *call, f32 timer){
 internal s8 playerCheck(f32 bpm, Call *call, f32 timer){
     for(s8 i = 0; i < call->beat_count; i++) {
         f32 acc = BeatCount(timer, bpm) - (call->beats[i])-4.0;
-        if(acc < 0.20 && acc >= 0) {
+        if(acc < 0.20 && acc >= 0 && call->visable) {
             return i+call->beat_count;
         }
     }
@@ -145,28 +145,9 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
             callSet->calls[callSet->current_call].pos[player_beat] = V2(battle->metronome.x, -1.1 - 0.29*button);
         }
         Button button = callSet->calls[callSet->current_call].beatButtons[player_beat%beat_count];
-        Game_Button controller_button;
-        switch(button){
-            case Button_Up: {
-                controller_button = controller->up;
-            }
-            break;
-            case Button_Left: {
-                controller_button = controller->left;
-            }
-            break;
-            case Button_Right: {
-                controller_button = controller->right;
-            }
-            break;
-            case Button_Down: {
-                controller_button = controller->down;
-            }
-            break;
-        }
+        Game_Button controller_button = controller->buttons[button];
         if(JustPressed(controller_button)) {
             callSet->calls[callSet->current_call].visable[player_beat%beat_count] = 1;
-            printf("hit\n");
         }
     }
     if (JustPressed(controller->up)) {
