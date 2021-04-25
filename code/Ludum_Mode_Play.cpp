@@ -22,6 +22,8 @@ internal void ModePlay(Game_State *state) {
     play->player[3] = CreateAnimation(GetImageByName(&state->assets, "left_walk"),     2, 1, 0.23);
     play->last_anim = &play->player[0];
 
+    play->hermes = CreateAnimation(GetImageByName(&state->assets, "hermes_overworld"),  2, 1, 0.23);
+
     state->mode = GameMode_Play;
     state->play = play;
     GenerateShop(state, play);
@@ -49,34 +51,46 @@ internal void GenerateShop(Game_State *state, Mode_Play *play){
         {0},
         GetImageByName(&state->assets, "shop_tile"),
         0,
-        0.2f
+        0.2f,
+        false
     };
     tiles_arr[1] = {
         V2(1,1),
         GetImageByName(&state->assets, "apollo_amulet"),
         GetImageByName(&state->assets, "shop_tile"),
         10,
-        0.3f
+        0.3f,
+        false
     };
     tiles_arr[2] = {
         V2(1,1),
         GetImageByName(&state->assets, "extra_string"),
         GetImageByName(&state->assets, "shop_tile"),
         10,
-        0.4f
+        0.4f,
+        false
     };
     tiles_arr[3] = {
         V2(1,1),
         GetImageByName(&state->assets, "string_reinforcement"),
         GetImageByName(&state->assets, "shop_tile"),
         10,
-        0.2f
+        0.2f,
+        false
+    };
+    tiles_arr[4] = {
+        V2(1,1),
+        {0},
+        GetImageByName(&state->assets, "shop_tile"),
+        10,
+        0.2f,
+        true
     };
 
     Random rng = RandomSeed(time(0));
     v2 shop_tiles_grid = V2(3,3);
     umm items = 0;
-
+    bool hermes = false;
     for(umm i = 0; i < shop_tiles_grid.x; i++){
         for(umm j = 0; j < shop_tiles_grid.y; j++){
             play->shop_data.tile_indexes[i*(umm)shop_tiles_grid.x+j] = ((play->map_size.x/2)-1+i)*play->map_size.x + (play->map_size.y/2)-1+j;
@@ -88,7 +102,13 @@ internal void GenerateShop(Game_State *state, Mode_Play *play){
                 }
             }
             else{
-                play->shop_data.shop_tiles[i*3+j] = tiles_arr[0];
+                if(hermes){
+                    play->shop_data.shop_tiles[i*3+j] = tiles_arr[0];
+                }
+                else{
+                    play->shop_data.shop_tiles[i*3+j] = tiles_arr[4];
+                    hermes=true;
+                }
             }
         }
     }
@@ -107,23 +127,28 @@ internal bool InShop(umm index, Mode_Play *play){
 
 // Draw map based on size, tile dimensions and tile spacing
 //
-internal void DrawMap(Render_Batch *batch, Mode_Play *play, v2 size, v2 tile_dims, f32 spacing){
+internal void DrawMap(Render_Batch *batch, Mode_Play *play, v2 size, v2 tile_dims, f32 spacing, f32 dt){
     umm shop_tile_count = 0;
     for(umm i = 0; i < size.x; i++){
         for(umm j = 0; j < size.y; j++){
             Image_Handle texture = play->tile_arr[i*(umm)play->map_size.x+j].texture;
-            DrawQuad(batch, {0}, V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing)), V2(tile_dims.x,tile_dims.y), 0, V4(196/255.0, 240/255.0, 194/255.0, 1));
+            v2 pos = V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing));
+            DrawQuad(batch, {0}, pos, V2(tile_dims.x,tile_dims.y), 0, V4(196/255.0, 240/255.0, 194/255.0, 1));
             if(play->is_shop && InShop(i*(umm)size.x+j, play)){
-                DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_count].bg_texture, V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing)), V2(tile_dims.x,tile_dims.y));
+                DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_count].bg_texture, pos, V2(tile_dims.x,tile_dims.y));
                 if(IsValid(play->shop_data.shop_tiles[shop_tile_count].tile.texture)){
-                    DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_count].tile.texture, V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing)), V2(tile_dims.x,tile_dims.y));
+                    DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_count].tile.texture, pos, V2(tile_dims.x,tile_dims.y));
+                }
+                if(play->shop_data.shop_tiles[shop_tile_count].hermes){
+                    UpdateAnimation(&play->hermes, dt);
+                    DrawAnimation(batch, &play->hermes, dt, V3(pos), V2(0.6,0.6));
                 }
                 shop_tile_count++;
             }
             else if(IsValid(texture)){
-                DrawQuad(batch, texture, V2(i*(tile_dims.x+spacing), j*(tile_dims.x+spacing)), V2(tile_dims.x,tile_dims.y));
+                DrawQuad(batch, texture, pos, V2(tile_dims.x,tile_dims.y));
             }
-            play->tile_arr[i*(umm)size.x+j].pos = V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing));
+            play->tile_arr[i*(umm)size.x+j].pos = pos;
         }
     }
 }
@@ -204,6 +229,6 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     UpdateAnimation(&play->player[2], dt);
     UpdateAnimation(&play->player[3], dt);
 
-    DrawMap(batch, play, play->map_size, play->tile_size, play->tile_spacing);
+    DrawMap(batch, play, play->map_size, play->tile_size, play->tile_spacing, dt);
     DrawAnimation(batch, anim, dt, V3(play->player_position), V2(0.6, 0.6));
 }

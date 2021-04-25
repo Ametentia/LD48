@@ -12,6 +12,7 @@ struct Shop_Tile{
     Image_Handle bg_texture;
     umm cost;
     f32 steal_chance;
+    bool hermes;
 };
 
 struct Shop{
@@ -38,6 +39,8 @@ struct Mode_Play {
     v2 tile_size;
     f32 tile_spacing;
     Shop shop_data;
+
+    Animation hermes;
 };
 
 internal void GenerateShop(Game_State *state, Mode_Play *play);
