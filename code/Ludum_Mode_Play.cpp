@@ -225,12 +225,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         play->last_anim = &play->player[0];
     }
 
-    if (JustPressed(controller->action)) {
-        play->battle_mem = BeginTemp(play->alloc);
-        play->in_battle = 1;
-        play->battle = AllocStruct(play->alloc, Mode_Battle);
-        ModeBattle(state, play->battle, &play->battle_mem);
-    }
+    
 
     if (JustPressed(controller->interact)) {
         if(play->is_shop && InShop(play->grid_position, play)){
