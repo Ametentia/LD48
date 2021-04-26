@@ -26,8 +26,10 @@ struct Mode_Play {
     // Can be changed to whatever we need
     //
     v2 player_position;
+    umm grid_position;
     Animation player[4];
     Animation *last_anim;
+    umm money;
 
     u8 in_battle;
     Temporary_Memory battle_mem;

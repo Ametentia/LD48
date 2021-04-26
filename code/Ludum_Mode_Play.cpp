@@ -13,6 +13,7 @@ internal void ModePlay(Game_State *state) {
     play->tile_size = V2(0.5,0.5);
     play->tile_spacing = 0;
     play->is_shop = true;
+    play->money = 100;
     play->shop_data.shop_tiles = AllocArray(play->alloc, Shop_Tile, 9);
     play->shop_data.tile_indexes = AllocArray(play->alloc, umm, 9);
     
@@ -51,7 +52,7 @@ internal void GenerateShop(Game_State *state, Mode_Play *play){
         {0},
         GetImageByName(&state->assets, "shop_tile"),
         0,
-        0.2f,
+        0,
         false
     };
     tiles_arr[1] = {
@@ -93,20 +94,21 @@ internal void GenerateShop(Game_State *state, Mode_Play *play){
     bool hermes = false;
     for(umm i = 0; i < shop_tiles_grid.x; i++){
         for(umm j = 0; j < shop_tiles_grid.y; j++){
-            play->shop_data.tile_indexes[i*(umm)shop_tiles_grid.x+j] = ((play->map_size.x/2)-1+i)*play->map_size.x + (play->map_size.y/2)-1+j;
+            umm index = i*(umm)shop_tiles_grid.x+j;
+            play->shop_data.tile_indexes[index] = ((((umm)(play->map_size.x/2))-1+j)*(umm)play->map_size.x + ((umm)(play->map_size.y/2))-1+i)-1;
             if(items < 5){
                 umm rand = RandomBetween(&rng, 0U, 3U);
-                play->shop_data.shop_tiles[i*3+j] = tiles_arr[rand];
+                play->shop_data.shop_tiles[index] = tiles_arr[rand];
                 if(rand > 0){
                     items++;
                 }
             }
             else{
                 if(hermes){
-                    play->shop_data.shop_tiles[i*3+j] = tiles_arr[0];
+                    play->shop_data.shop_tiles[index] = tiles_arr[0];
                 }
                 else{
-                    play->shop_data.shop_tiles[i*3+j] = tiles_arr[4];
+                    play->shop_data.shop_tiles[index] = tiles_arr[4];
                     hermes=true;
                 }
             }
@@ -125,6 +127,15 @@ internal bool InShop(umm index, Mode_Play *play){
     return false;
 }
 
+internal umm GetShopTile(umm index, Mode_Play *play){
+    for(umm i = 0; i < 9; i++){
+        if(index == play->shop_data.tile_indexes[i]){
+            return i;
+        }
+    }
+    return 0;
+}
+
 // Draw map based on size, tile dimensions and tile spacing
 //
 internal void DrawMap(Render_Batch *batch, Mode_Play *play, v2 size, v2 tile_dims, f32 spacing, f32 dt){
@@ -135,15 +146,15 @@ internal void DrawMap(Render_Batch *batch, Mode_Play *play, v2 size, v2 tile_dim
             v2 pos = V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing));
             DrawQuad(batch, {0}, pos, V2(tile_dims.x,tile_dims.y), 0, V4(196/255.0, 240/255.0, 194/255.0, 1));
             if(play->is_shop && InShop(i*(umm)size.x+j, play)){
-                DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_count].bg_texture, pos, V2(tile_dims.x,tile_dims.y));
-                if(IsValid(play->shop_data.shop_tiles[shop_tile_count].tile.texture)){
-                    DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_count].tile.texture, pos, V2(tile_dims.x,tile_dims.y));
+                umm shop_tile_index = GetShopTile(i*(umm)size.x+j, play);
+                DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_index].bg_texture, pos, V2(tile_dims.x,tile_dims.y));
+                if(IsValid(play->shop_data.shop_tiles[shop_tile_index].tile.texture)){
+                    DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_index].tile.texture, pos, V2(tile_dims.x,tile_dims.y));
                 }
-                if(play->shop_data.shop_tiles[shop_tile_count].hermes){
+                if(play->shop_data.shop_tiles[shop_tile_index].hermes){
                     UpdateAnimation(&play->hermes, dt);
                     DrawAnimation(batch, &play->hermes, dt, V3(pos), V2(0.6,0.6));
                 }
-                shop_tile_count++;
             }
             else if(IsValid(texture)){
                 DrawQuad(batch, texture, pos, V2(tile_dims.x,tile_dims.y));
@@ -185,7 +196,8 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         if (play->player_position.x != 0) {
             play->player_position -= V2(dx, 0);
         }
-
+        
+        play->grid_position -= (umm)play->map_size.x;
         play->last_anim = &play->player[3];
     }
 
@@ -193,7 +205,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         if (play->player_position.x + dx < dx * play->map_size.x) {
             play->player_position += V2(dx, 0);
         }
-
+        play->grid_position += (umm)play->map_size.x;
         play->last_anim = &play->player[2];
     }
 
@@ -201,7 +213,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         if (play->player_position.y + dy < dy * play->map_size.y) {
             play->player_position += V2(0, dy);
         }
-
+        play->grid_position++;
         play->last_anim = &play->player[1];
     }
 
@@ -209,7 +221,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         if (play->player_position.y != 0) {
             play->player_position -= V2(0, dy);
         }
-
+        play->grid_position--;
         play->last_anim = &play->player[0];
     }
 
@@ -218,6 +230,19 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         play->in_battle = 1;
         play->battle = AllocStruct(play->alloc, Mode_Battle);
         ModeBattle(state, play->battle, &play->battle_mem);
+    }
+
+    if (JustPressed(controller->interact)) {
+        if(play->is_shop && InShop(play->grid_position, play)){
+            umm shop_index = GetShopTile(play->grid_position, play);
+            Shop_Tile current_shop_tile = play->shop_data.shop_tiles[shop_index];
+            if(current_shop_tile.cost > 0 && play->money >= current_shop_tile.cost){
+                play->money -= current_shop_tile.cost;
+                //buy sound play here?
+                play->shop_data.shop_tiles[shop_index].tile.texture = { 0 };
+                play->shop_data.shop_tiles[shop_index].cost = 0;
+            }
+        }
     }
 
     Animation *anim = play->last_anim;
