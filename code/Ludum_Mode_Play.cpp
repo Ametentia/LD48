@@ -23,7 +23,11 @@ internal void ModePlay(Game_State *state) {
     play->enemy_count = RandomBetween(&world->rng, min_enemy_count, max_enemy_count);
     play->enemies     = AllocArray(play->alloc, Enemy, play->enemy_count);
 
-    play->transition = CreateAnimation(GetImageByName(&state->assets, "transition_spritesheet"), 5, 2, 0.1);
+    play->transition_in  =
+        CreateAnimation(GetImageByName(&state->assets, "transition_spritesheet"), 5, 2, 0.1);
+
+    play->transition_out =
+        CreateAnimation(GetImageByName(&state->assets, "transition_out_spritesheet"), 5, 2, 0.1);
 
     play->enemy_animation = CreateAnimation(GetImageByName(&state->assets, "enemy"), 2, 1, 0.45);
     for (u32 it = 0; it < play->enemy_count; ++it) {
@@ -137,14 +141,14 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
                         player->animation = &player->walk_animations[0];
 
-                        ResetAnimation(&play->transition);
+                        ResetAnimation(&play->transition_in);
                         play->transition_delay = 0;
 
-                        play->level_state = LevelState_Playing;
+                        play->level_state = LevelState_TransitionOut;
                         return;
                     }
                     else {
-                        play->level_state = LevelState_Transition;
+                        play->level_state = LevelState_TransitionIn;
                     }
                 }
             }
@@ -244,9 +248,9 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         }
     }
 
-    if (play->level_state == LevelState_Transition) {
-        if (!IsFinished(&play->transition)) {
-            UpdateAnimation(&play->transition, dt);
+    if (play->level_state == LevelState_TransitionIn) {
+        if (!IsFinished(&play->transition_in)) {
+            UpdateAnimation(&play->transition_in, dt);
         }
         else {
             play->transition_delay += dt;
@@ -255,6 +259,19 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
             }
         }
 
-        DrawAnimation(batch, &play->transition, V3(player_world_pos), V2(10, 10));
+        DrawAnimation(batch, &play->transition_in, V3(player_world_pos), V2(10, 10));
+    }
+    else if (play->level_state == LevelState_TransitionOut) {
+        if (!IsFinished(&play->transition_out)) {
+            UpdateAnimation(&play->transition_out, dt);
+        }
+        else {
+            play->transition_delay += dt;
+            if (play->transition_delay >= 0.9) {
+                play->level_state = LevelState_Playing;
+            }
+        }
+
+        DrawAnimation(batch, &play->transition_out, V3(player_world_pos), V2(10, 10));
     }
 }

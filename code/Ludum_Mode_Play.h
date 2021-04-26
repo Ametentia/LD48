@@ -4,7 +4,8 @@
 
 enum Level_State {
     LevelState_Playing = 0,
-    LevelState_Transition,
+    LevelState_TransitionOut,
+    LevelState_TransitionIn,
     LevelState_Next
 };
 
@@ -46,13 +47,15 @@ struct Mode_Play {
     Mode_Battle *battle;
 
     Level_State level_state;
-    Animation transition;
+
+    Animation transition_in;
+    Animation transition_out;
+
     f32 transition_delay;
 
     World world;
 
     Player player;
-
 
     Animation enemy_animation;
 
