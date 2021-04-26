@@ -7,6 +7,8 @@ internal void ModePlay(Game_State *state) {
     Mode_Play *play = AllocStruct(&state->mode_alloc, Mode_Play);
     play->alloc = &state->mode_alloc;
     play->temp = state->temp;
+    Sound_Handle world_music = GetSoundByName(&state->assets, "overworld");
+    play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
 
     // World gen stuff
     //
@@ -82,6 +84,8 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         if (play->battle->done) {
             EndTemp(play->battle_mem);
             play->in_battle = 0;
+            Sound_Handle world_music = GetSoundByName(&state->assets, "overworld");
+            play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
         }
 
         return;
@@ -114,6 +118,8 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
             play->in_battle  = 1;
 
             ModeBattle(state, play->battle, &play->battle_mem);
+            play->music->volume = 0;
+            play->music->flags = 0;
             player_tile->flags &= ~TileFlag_HasEnemy;
 
             for (u32 it = 0; it < play->enemy_count; ++it) {

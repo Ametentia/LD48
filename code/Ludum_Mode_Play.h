@@ -46,6 +46,7 @@ struct Mode_Play {
     Temporary_Memory battle_mem;
     Mode_Battle *battle;
 
+    Playing_Sound *music;
     Level_State level_state;
 
     Animation transition_in;
