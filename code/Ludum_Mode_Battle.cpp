@@ -1,3 +1,4 @@
+#include "Ludum_Mode_Battle_Calls.cpp"
 internal f32 BpmToBps(f32 bpm) {
     return bpm/60;
 }
@@ -5,96 +6,34 @@ internal f32 BpmToBps(f32 bpm) {
 internal void ModeBattle(Game_State *state, Mode_Battle *battle, Temporary_Memory *alloc) {
     battle->alloc = alloc->alloc;
     battle->random = RandomSeed(time(NULL));
+    u8 song = NextRandom(&battle->random)%2;
     battle->points = 0;
-    battle->metronome = V2(-2.9, -0.2);
+    battle->metronome = V2(-2.7, -0.2);
     battle->met_angle = 180;
-    battle->met_flip_range = V2(-0.5, -0.3);
-    battle->guide_height = 2.3;
+    battle->met_flip_range = V2(-0.3, 0);
+    battle->guide_height = 2;
     battle->dance_angle = 1;
-    battle->bpm = 98.0;
+    u8 bpms[2] = {
+        94, 87
+    };
+    battle->bpm = bpms[song];
     battle->intro_wait = 2;
     battle->wave = -1;
     battle->beat_wait = 8;
     battle->met_speed = 6.8/8*BpmToBps(battle->bpm);
-    Sound_Handle intro = GetSoundByName(&state->assets, "intro");
-    PlaySound(state, intro, 0.3, 0);
-
-    battle->calls = {
-        {
-            {
-                {0,0.5,1,1.5,2},
-                {Button_Up, Button_Up, Button_Up, Button_Down, Button_Up},
-                5,
-                4,
-                {},
-                {},
-                0,
-                0,
-                "0_call",
-                {"0X_harp_d",
-                "0X_harp_c",
-                "e3",
-                "f3"}
-            },{
-                {0,0.5,1,1.5,2},
-                {Button_Up, Button_Up, Button_Up, Button_Down, Button_Up},
-                5,
-                4,
-                {},
-                {},
-                0,
-                0,
-                "1_call",
-                {"0X_harp_d",
-                "0X_harp_c",
-                "e3",
-                "f3"}
-            },{
-                {0,0.5,1,1.5,2},
-                {Button_Down, Button_Right, Button_Down, Button_Up, Button_Left},
-                5,
-                4,
-                {},
-                {},
-                0,
-                0,
-                "2_call",
-                {"0X_harp_d",
-                "0X_harp_c",
-                "e3",
-                "f3"}
-            },{
-                {0,0.5,1,1.5,2},
-                {Button_Down, Button_Down, Button_Up, Button_Right, Button_Left},
-                5,
-                4,
-                {},
-                {},
-                0,
-                0,
-                "3_call",
-                {"4X_harp_d",
-                "4X_harp_d5",
-                "4X_harp_d5trip",
-                "4X_harp_g"}
-            },{
-                {0,0.5,1,1.5,2},
-                {Button_Down, Button_Down, Button_Up, Button_Right, Button_Left},
-                5,
-                4,
-                {},
-                {},
-                0,
-                0,
-                "4_call",
-                {"4X_harp_d",
-                "4X_harp_d5",
-                "4X_harp_d5trip",
-                "4X_harp_g"}
-            }
-        },
-        0
+    char intros[2][8] = {
+        "intro_1", "intro_2"
     };
+    Sound_Handle intro = GetSoundByName(&state->assets, intros[song]);
+    PlaySound(state, intro, 0.3, 0);
+    battle->transition = CreateAnimation(GetImageByName(&state->assets, "transition_spritesheet"), 5, 2, 0.23);
+
+    battle->calls = GetCall(song);
+    u32 note_count = 0;
+    for(u8 i = 0; i < 5; i++){
+        note_count += battle->calls.calls[i].beat_count;
+    }
+    battle->calls.total_notes = note_count;
     
     battle->beat_textures = AllocArray(battle->alloc, Image_Handle, 4);
     battle->beat_textures[0] = GetImageByName(&state->assets, "up");
@@ -148,22 +87,25 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
         f32 pos = battle->metronome.x - battle->met_flip_range.x;
         f32 alpha = pos/(battle->met_flip_range.y - battle->met_flip_range.x);
         battle->met_angle = Lerp(0, -180, alpha);
-        battle->guide_height = Lerp(-2.3, 2.3, alpha);
+        battle->guide_height = Lerp(-2.3, 2, alpha);
     }
     else if(battle->metronome.x > battle->met_flip_range.y) {
         battle->met_angle = 0;
     }
-    if(BeatCount(battle->timer, battle->bpm) > battle->beat_wait) {
+    if(BeatCount(battle->timer, battle->bpm) >= battle->beat_wait) {
         battle->timer = 0;
         battle->wave += 1;
         battle->beat_wait = 8;
-        battle->metronome.x = -2.9;
+        battle->metronome.x = -2.7;
         battle->met_angle = 180;
-        battle->guide_height = 2.3;
+        battle->guide_height = 2;
         Call call = battle->calls.calls[battle->calls.current_call];
         if(call.hits >= call.successThreshold) {
             battle->calls.current_call += 1;
-            if(battle->calls.current_call == 5){
+            battle->calls.attempt_count += call.beat_count;
+            u8 all_notes = battle->calls.hits >= battle->calls.total_notes;
+            u8 all_calls = battle->calls.current_call > 4;
+            if(all_notes || all_calls){
                 battle->done = 1;
                 return;
             }
@@ -181,6 +123,7 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
     if(battle->wave>-1) {
         battle->metronome.x += battle->met_speed*dt; 
     }
+    f32 bar_progress = Min(cast(f32) battle->calls.hits/cast(f32)Max(battle->calls.total_notes, battle->calls.attempt_count), 1);
 
     Image_Handle harp = GetImageByName(&state->assets, "player_strings");
     Image_Handle enemyBox = GetImageByName(&state->assets, "enemy_strings");
@@ -188,14 +131,17 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
     Image_Handle sprite = GetImageByName(&state->assets, "player_backsprite");
     Image_Handle spotlight = GetImageByName(&state->assets, "spotlight");
     Image_Handle skele = GetImageByName(&state->assets, "phoenix_01");
-    Image_Handle bar = GetImageByName(&state->assets, "bar_border");
-    // TODO @Matt come on jesus look at this line, It doesn't even work
+    Image_Handle bar = GetImageByName(&state->assets, "phoenix_admiration_bar");
+    Image_Handle bar_fill = GetImageByName(&state->assets, "bar_fill");
     DrawQuad(batch, spotlight, V2(1.8, 0.3), 2.5, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, sprite, V2(-2, -1.7), 2.5, Sin(Radians(Lerp(-15*battle->dance_angle, 15*battle->dance_angle, battle->dance_timer/BpmToBps(battle->bpm)))), V4(1, 1, 1, 1));
-    DrawQuad(batch, harp, V2(1.20, -1.5), 4, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, sprite, V2(-2, -1.7), 2.5, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, harp, V2(1.6, -1.5), 4, 0, V4(1, 1, 1, 1));
     DrawQuad(batch, skele, V2(1.8, 1.1), 2.6 /*2.125*/, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, enemyBox, V2(-2, 1.1), 3.3, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, bar, V2(0, 2.55), 4, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, enemyBox, V2(-1.8, 1.1), 3.3, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, bar_fill, V2(Lerp(-1.6, -5.4, bar_progress), 2.35), 4.1, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, bar, V2(-1.6, 2.35), 4, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, {0}, V2(-4.1, 2.36), V2(1,1.3), 0, V4(0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
+    DrawQuad(batch, {0}, V2(-3.83, 2.5), V2(0.5,0.05), 0, V4(0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
     v2 lineHeight = V2(battle->metronome.x, battle->metronome.y+battle->guide_height);
     DrawLine(batch, battle->metronome, lineHeight, V4(1,1,1,1));
     DrawQuad(batch, metronome, battle->metronome, 0.4, Radians(battle->met_angle), V4(1, 1, 1, 1));
@@ -221,6 +167,7 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
         if(JustPressed(controller_button) && !callSet->calls[callSet->current_call].visable[player_beat%beat_count]) {
             callSet->calls[callSet->current_call].visable[player_beat%beat_count] = 1;
             callSet->calls[callSet->current_call].hits += 1;
+            callSet->hits += 1;
             Sound_Handle intro = GetSoundByName(&state->assets, callSet->calls[callSet->current_call].note_asset_names[button]);
             PlaySound(state, intro, 0.3, 0);
             note_hit = 1;
