@@ -7,23 +7,63 @@ internal void ModePlay(Game_State *state) {
     Mode_Play *play = AllocStruct(&state->mode_alloc, Mode_Play);
     play->alloc = &state->mode_alloc;
     play->temp = state->temp;
-    play->player_position = V2(0, 0);
-    play->map_size = V2(10,12);
-    play->tile_arr = AllocArray(play->alloc, Tile, play->map_size.x*play->map_size.y);
-    play->tile_size = V2(0.5,0.5);
-    play->tile_spacing = 0.01;
-    play->player[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.23);
-    play->player[1] = CreateAnimation(GetImageByName(&state->assets, "backward_walk"), 4, 1, 0.23);
-    play->player[2] = CreateAnimation(GetImageByName(&state->assets, "right_walk"),    2, 1, 0.23);
-    play->player[3] = CreateAnimation(GetImageByName(&state->assets, "left_walk"),     2, 1, 0.23);
-
-    play->camera_pos.z = 100;
-
-    play->last_anim = &play->player[0];
 
     // World gen stuff
     //
-    play->world = CreateWorld(play->alloc, &state->assets, V2U(5, 5));
+    play->world = CreateWorld(play->alloc, &state->assets, V2U(5, 5), 1);
+
+    World *world = &play->world;
+
+    Player *player = &play->player;
+
+    u32 min_enemy_count = world->room_count + (world->room_count / 2);
+    u32 max_enemy_count = 4 * world->room_count;
+    Assert(min_enemy_count < max_enemy_count);
+
+    play->enemy_count = RandomBetween(&world->rng, min_enemy_count, max_enemy_count);
+    play->enemies     = AllocArray(play->alloc, Enemy, play->enemy_count);
+
+    play->transition = CreateAnimation(GetImageByName(&state->assets, "transition_spritesheet"), 5, 2, 0.1);
+
+    play->enemy_animation = CreateAnimation(GetImageByName(&state->assets, "enemy"), 2, 1, 0.45);
+    for (u32 it = 0; it < play->enemy_count; ++it) {
+        Enemy *enemy = &play->enemies[it];
+
+        u32 room_index = RandomBetween(&world->rng, 0U, world->room_count - 1);
+        Room *room = &world->rooms[room_index];
+        while (room->enemy_count == 4) {
+            room_index = RandomBetween(&world->rng, 0U, world->room_count - 1);
+            room = &world->rooms[room_index];
+        }
+
+        room->enemy_count += 1;
+        enemy->room = room;
+
+        enemy->alive = true;
+
+        enemy->move_timer = RandomUnilateral(&world->rng);
+
+        enemy->grid_pos.x = RandomBetween(&world->rng, 0U, enemy->room->dim.x);
+        enemy->grid_pos.y = RandomBetween(&world->rng, 0U, enemy->room->dim.y);
+
+        enemy->animation = &play->enemy_animation;
+    }
+
+
+    // Setup walk animations
+    //
+    player->walk_animations[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.25);
+    player->walk_animations[1] = CreateAnimation(GetImageByName(&state->assets, "backward_walk"), 4, 1, 0.25);
+    player->walk_animations[2] = CreateAnimation(GetImageByName(&state->assets, "right_walk"),    2, 1, 0.25);
+    player->walk_animations[3] = CreateAnimation(GetImageByName(&state->assets, "left_walk"),     2, 1, 0.25);
+
+    // Player
+    //
+    player->room     = &world->rooms[0];
+    player->grid_pos = V2S(player->room->dim.x / 2, player->room->dim.y / 2);
+    player->last_pos = player->grid_pos;
+
+    player->animation = &player->walk_animations[0];
 
     state->mode = GameMode_Play;
     state->play = play;
@@ -33,127 +73,188 @@ internal void ModePlay(Game_State *state) {
 //
 internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Command_Buffer *draw_buffer) {
     Mode_Play *play = state->play;
-    if(play->in_battle) {
+    if (play->in_battle) {
         UpdateRenderModeBattle(state, input, draw_buffer, play->battle);
-        if(play->battle->done) {
+        if (play->battle->done) {
             EndTemp(play->battle_mem);
             play->in_battle = 0;
         }
+
         return;
     }
 
-    Render_Batch _batch = CreateRenderBatch(draw_buffer, &state->assets,
-            V4(0.0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
+    v4 clear_colour = V4(0.0, 41.0 / 255.0, 45.0 / 255.0, 1.0);
+
+    Render_Batch _batch = CreateRenderBatch(draw_buffer, &state->assets, clear_colour);
     Render_Batch *batch = &_batch;
 
     Game_Controller *controller = GameGetController(input, 1);
-
-    if (!controller->connected) {
-        controller = GameGetController(input, 0);
-    }
+    if (!controller->connected) { controller = GameGetController(input, 0); }
 
     f32 dt = input->delta_time;
 
-    f32 dx = play->tile_size.x+play->tile_spacing;
-    f32 dy = play->tile_size.y+play->tile_spacing;
+    World *world   = &play->world;
+    Player *player = &play->player;
 
-    if (JustPressed(controller->left)) {
-        if (play->player_position.x != 0) {
-            play->player_position -= V2(dx, 0);
+    if (play->level_state == LevelState_Playing) {
+        MovePlayer(controller, world, dt, player);
+    }
+
+    v2 player_world_pos = GetPlayerWorldPosition(world, player);
+
+    {
+        Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
+        if (player_tile->flags & TileFlag_HasEnemy) {
+            play->battle_mem = BeginTemp(play->alloc);
+            play->battle     = AllocStruct(play->alloc, Mode_Battle);
+            play->in_battle  = 1;
+
+            ModeBattle(state, play->battle, &play->battle_mem);
+            player_tile->flags &= ~TileFlag_HasEnemy;
+
+            for (u32 it = 0; it < play->enemy_count; ++it) {
+                Enemy *enemy = &play->enemies[it];
+
+                if (IsEqual(enemy->grid_pos, player->grid_pos)) {
+                    enemy->alive = false;
+                }
+            }
         }
+        else {
+            Tile *last_tile = GetTileFromRoom(player->room, player->last_pos.x, player->last_pos.y);
+            if (last_tile->flags & TileFlag_IsExit) {
+                if (world->layer_number == 6) {
+                    input->requested_quit = true;
+                }
+                else {
+                    if (play->level_state == LevelState_Next) {
+                        play->world =
+                            CreateWorld(play->alloc, &state->assets, V2U(5, 5), world->layer_number + 1);
 
-        play->last_anim = &play->player[3];
-    }
+                        player->room = &world->rooms[0];
+                        player->grid_pos = V2S(player->room->dim.x / 2, player->room->dim.y / 2);
+                        player->last_pos = player->grid_pos;
 
-    if (JustPressed(controller->right)) {
-        if (play->player_position.x + dx < dx * play->map_size.x) {
-            play->player_position += V2(dx, 0);
-        }
+                        player->animation = &player->walk_animations[0];
 
-        play->last_anim = &play->player[2];
-    }
+                        ResetAnimation(&play->transition);
+                        play->transition_delay = 0;
 
-    if (JustPressed(controller->up)) {
-        play->camera_pos.z -= 5;
-    }
-
-    if (JustPressed(controller->down)) {
-        play->camera_pos.z += 5;
-    }
-
-    if (JustPressed(controller->action)) {
-        play->battle_mem = BeginTemp(play->alloc);
-        play->in_battle = 1;
-        play->battle = AllocStruct(play->alloc, Mode_Battle);
-        ModeBattle(state, play->battle, &play->battle_mem);
-    }
-
-    if (IsPressed(input->mouse_buttons[MouseButton_Left])) {
-        play->camera_pos -= V3((Abs(play->camera_pos.z) * 0.8 * input->mouse_delta));
-    }
-
-    Animation *anim = play->last_anim;
-
-    SetCameraTransform(batch, 0, V3(1, 0, 0),
-            V3(0, 1, 0), V3(0, 0, 1), play->camera_pos);
-
-    // @Todo: Proper player entity
-    //
-    UpdateAnimation(&play->player[0], dt);
-    UpdateAnimation(&play->player[1], dt);
-    UpdateAnimation(&play->player[2], dt);
-    UpdateAnimation(&play->player[3], dt);
-
-    DrawAnimation(batch, anim, dt, V3(play->player_position), V2(0.6, 0.6));
-
-    // @Todo(James): Make this its own 'DrawWorld' function or something
-    //
-    v4 tile_colour = V4(196.0f / 255.0f, 240.0f / 255.0f, 194.0f / 255.0f, 1.0);
-    World *world = &play->world;
-    for (u32 it = 0; it < world->room_count; ++it) {
-        Room *room = &world->rooms[it];
-
-        v4 c = V4(1, 0, 1, 1);
-        if (room->flags & RoomFlag_IsStart) { c = V4(0, 1, 0, 1); }
-        else if (room->flags & RoomFlag_HasExit) { c = V4(1, 0, 0, 1); }
-
-        v2 pos = room->pos * world->tile_size;
-        v2 dim = V2(room->dim) * world->tile_size;
-        DrawQuadOutline(batch, pos, dim, 0, c, 0.25);
-
-        for (u32 y = 0; y < room->dim.y; ++y) {
-            for (u32 x = 0; x < room->dim.x; ++x) {
-                u32 index = (y * room->dim.x) + x;
-                Tile *tile = &room->tiles[index];
-
-                v2 tile_pos = pos + (0.5 * world->tile_size) +
-                    (((-0.5f * V2(room->dim)) + V2(x, y)) * world->tile_size);
-
-                DrawQuad(batch, { 0 }, tile_pos, world->tile_size, 0, tile_colour);
-                for (u32 l = 0; l < 3; ++l) {
-                    if (IsValid(tile->layers[l])) {
-                        f32 angle = 0;
-                        // @Note: The top layer is reserved for borders as they need to be rotated in specific
-                        // ways
-                        //
-                        if (l == 2) {
-                            angle = GetBorderRotation(tile);
-                        }
-
-                        DrawQuad(batch, tile->layers[l], tile_pos, world->tile_size, angle);
+                        play->level_state = LevelState_Playing;
+                        return;
+                    }
+                    else {
+                        play->level_state = LevelState_Transition;
                     }
                 }
             }
         }
+    }
 
-        for (u32 con = 0; con < 4; ++con) {
-            Room *connection = room->connections[con];
-            if (!connection) { continue; }
 
-            v2 dir = Normalise(connection->pos - room->pos);
-            v2 pos = (room->pos + (dir * 0.5 *  V2(room->dim))) * world->tile_size;
-
-            DrawLine(batch, pos, pos + (2 * dir), V4(1, 0, 0, 1), V4(0, 1, 0, 0), 0.15);
+    // @Debug: Debug camera stuff
+    //
+    if (JustPressed(input->f[2])) {
+        play->debug_camera = !play->debug_camera;
+        if (play->debug_camera) {
+            play->debug_camera_pos = V3(RoomGridToWorld(world, player->room, player->grid_pos), 10);
         }
+    }
+
+    if (play->debug_camera) {
+        if (IsPressed(input->mouse_buttons[MouseButton_Left])) {
+            play->debug_camera_pos -= V3((Abs(play->debug_camera_pos.z) * 0.8 * V2(input->mouse_delta)));
+        }
+
+        play->debug_camera_pos.z += input->mouse_delta.z;
+        if (play->debug_camera_pos.z < 5) { play->debug_camera_pos.z = 5; }
+        else if (play->debug_camera_pos.z > 125) { play->debug_camera_pos.z = 125; }
+    }
+
+    // Set camera transform
+    //
+    v3 camera_pos = (play->debug_camera) ? play->debug_camera_pos : V3(player_world_pos, 6);
+    SetCameraTransform(batch, 0, V3(1, 0, 0), V3(0, 1, 0), V3(0, 0, 1), camera_pos);
+
+    // Draw active world
+    //
+    DrawRoom(batch, world, player->room);
+
+    UpdateAnimation(&play->enemy_animation, dt);
+    UpdateAnimation(player->animation, dt);
+
+    DrawAnimation(batch, player->animation, V3(player_world_pos), world->tile_size);
+
+#if 1
+    Room *ra = player->room;
+    Room *rb = &world->rooms[world->room_count - 1];
+    v2 dir = Normalise(rb->pos - ra->pos);
+    DrawLine(batch, player_world_pos, player_world_pos + (2 * dir), V4(0, 0, 1, 1), V4(0, 0, 1, 1), 0.05);
+#endif
+
+    for (u32 it = 0; it < play->enemy_count; ++it) {
+        Enemy *enemy = &play->enemies[it];
+        if (!enemy->alive) { continue; }
+
+        enemy->move_timer += dt;
+
+        enemy->move_delay_timer -= dt;
+        if (enemy->move_delay_timer < 0) {
+            v2 dir = RandomDir(&world->rng);
+            s32 x = cast(s32) dir.x;
+            s32 y = cast(s32) dir.y;
+
+            v2s target_pos;
+            target_pos.x = enemy->grid_pos.x + x;
+            target_pos.y = enemy->grid_pos.y + y;
+            if (IsValid(enemy->room, target_pos.x, target_pos.y)) {
+                enemy->last_pos = enemy->grid_pos;
+                enemy->grid_pos = target_pos;
+                enemy->move_timer = 0;
+
+                Tile *old_tile = GetTileFromRoom(enemy->room, enemy->last_pos.x, enemy->last_pos.y);
+                old_tile->flags &= ~TileFlag_HasEnemy;
+
+                Tile *new_tile = GetTileFromRoom(enemy->room, enemy->grid_pos.x, enemy->grid_pos.y);
+                new_tile->flags |= TileFlag_HasEnemy;
+            }
+
+            enemy->move_delay_timer = 0.5;
+        }
+
+        v2 world_pos;
+        if (!IsEqual(enemy->grid_pos, enemy->last_pos)) {
+            f32 alpha = enemy->move_timer / 0.15f;
+            v2 a = RoomGridToWorld(world, enemy->room, enemy->grid_pos);
+            v2 b = RoomGridToWorld(world, enemy->room, enemy->last_pos);
+
+            world_pos = Lerp(a, b, alpha);
+
+            if (alpha >= 1) {
+                enemy->last_pos = enemy->grid_pos;
+                world_pos = RoomGridToWorld(world, enemy->room, enemy->grid_pos);
+            }
+        }
+        else {
+            world_pos = RoomGridToWorld(world, enemy->room, enemy->grid_pos);
+        }
+
+        if (enemy->room == player->room) {
+            DrawAnimation(batch, enemy->animation, V3(world_pos), world->tile_size);
+        }
+    }
+
+    if (play->level_state == LevelState_Transition) {
+        if (!IsFinished(&play->transition)) {
+            UpdateAnimation(&play->transition, dt);
+        }
+        else {
+            play->transition_delay += dt;
+            if (play->transition_delay >= 0.9) {
+                play->level_state = LevelState_Next;
+            }
+        }
+
+        DrawAnimation(batch, &play->transition, V3(player_world_pos), V2(10, 10));
     }
 }

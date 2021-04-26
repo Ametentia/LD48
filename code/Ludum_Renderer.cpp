@@ -355,7 +355,7 @@ internal void DrawQuadOutline(Render_Batch *batch, v2 centre, v2 dim,
 }
 
 
-internal Animation CreateAnimation(Image_Handle image, u32 rows, u32 columns, f32 time_per_frame) {
+internal Animation CreateAnimation(Image_Handle image, u32 columns, u32 rows, f32 time_per_frame) {
     Animation result = {};
     result.image = image;
 
@@ -376,12 +376,12 @@ internal void UpdateAnimation(Animation *anim, f32 delta_time) {
     }
 }
 
-internal void DrawAnimation(Render_Batch *batch, Animation *anim, f32 delta_time,
+internal void DrawAnimation(Render_Batch *batch, Animation *anim,
         v3 centre, v2 scale, f32 angle = 0, v4 colour = V4(1, 1, 1, 1))
 {
     Amt_Image *info = GetImageInfo(batch->assets, anim->image);
 
-    v2 dim = V2(info->width / cast(f32) anim->rows, info->height / cast(f32) anim->columns);
+    v2 dim = V2(info->width / cast(f32) anim->columns, info->height / cast(f32) anim->rows);
     if (dim.w > dim.h) {
         dim.h = dim.h / dim.w;
         dim.w = 1;
@@ -402,9 +402,11 @@ internal void DrawAnimation(Render_Batch *batch, Animation *anim, f32 delta_time
     v3 p2 = centre + V3(Rotate(V2(half_dim.x, -half_dim.y), rot));
     v3 p3 = centre + V3(Rotate(half_dim, rot));
 
-    v2 uv_size = V2(1.0f / cast(f32) anim->rows, 1.0f / cast(f32) anim->columns);
-    v2 uv_min  = V2(uv_size.x * (anim->current_frame / anim->columns),
-                    uv_size.y * (anim->current_frame % anim->columns));
+    u32 row = cast(u32) (((f32) anim->current_frame) / ((f32) anim->columns));
+    u32 col = anim->current_frame % anim->columns;
+
+    v2 uv_size = V2(1.0f / cast(f32) anim->columns, 1.0f / cast(f32) anim->rows);
+    v2 uv_min  = V2(uv_size.x * col, uv_size.y * row);
 
     v2 uv0 = uv_min;
     v2 uv1 = V2(uv_min.x, uv_min.y + uv_size.y);
@@ -418,4 +420,14 @@ internal void DrawAnimation(Render_Batch *batch, Animation *anim, f32 delta_time
             p2, uv2, packed_colour,
             p3, uv3, packed_colour);
 
+}
+
+internal void ResetAnimation(Animation *anim) {
+    anim->current_frame = 0;
+    anim->time = 0;
+}
+
+internal b32 IsFinished(Animation *anim) {
+    b32 result = (anim->current_frame == (anim->total_frames - 1));
+    return result;
 }

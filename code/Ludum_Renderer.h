@@ -234,7 +234,7 @@ internal Animation CreateAnimation(Image_Handle image, u32 rows, u32 columns, f3
 
 // Update and draw the animation with the specified parameters
 //
-internal void DrawAnimation(Render_Batch *batch, Animation *anim, f32 delta_time,
+internal void DrawAnimation(Render_Batch *batch, Animation *anim,
         v3 centre, v2 scale, f32 angle, v4 colour);
 
 // Ignore me :)

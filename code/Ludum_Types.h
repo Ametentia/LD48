@@ -63,6 +63,19 @@ struct buffer {
 
 typedef buffer string;
 
+union v2s {
+    struct {
+        s32 x, y;
+    };
+
+    struct {
+        s32 w, h;
+    };
+
+    s32 e[2];
+};
+
+
 union v2u {
     struct {
         u32 x, y;

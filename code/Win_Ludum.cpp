@@ -276,8 +276,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     //
     Renderer_Parameters params = {};
     params.command_buffer_size          = Megabytes(1);
-    params.max_immediate_vertex_count   = (1 << 16);
-    params.max_immediate_index_count    = (1 << 17);
+    params.max_immediate_vertex_count   = (1 << 17);
+    params.max_immediate_index_count    = (1 << 18);
     params.max_texture_handle_count     = 128;
     params.texture_transfer_buffer_size = Megabytes(128);
     params.platform_data                = SDL2GetPlatformData();

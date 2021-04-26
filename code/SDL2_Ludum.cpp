@@ -141,6 +141,8 @@ internal void SDL2HandleInput(Game_Input *current_input, Game_Input *prev_input)
         current_kb->buttons[it].transistions = 0;
     }
 
+    current_input->mouse_clip.z = prev_input->mouse_clip.z;
+
     //
     // Event handling
     //
@@ -155,6 +157,11 @@ internal void SDL2HandleInput(Game_Input *current_input, Game_Input *prev_input)
             case SDL_KEYDOWN:
             case SDL_KEYUP: {
                 SDL2HandleKeyboardEvent(current_kb, &event.key);
+            }
+            break;
+
+            case SDL_MOUSEWHEEL: {
+                current_input->mouse_clip.z -= event.wheel.y;
             }
             break;
 

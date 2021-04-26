@@ -52,6 +52,16 @@ inline u32 ABGRPack(v4 colour) {
     return result;
 }
 
+inline v2s V2S(s32 x, s32 y) {
+    v2s result = { x, y };
+    return result;
+}
+
+inline b32 IsEqual(v2s a, v2s b) {
+    b32 result = (a.x == b.x) && (a.y == b.y);
+    return result;
+}
+
 // v2u functions
 //
 inline v2u V2U(u32 x, u32 y) {
@@ -118,6 +128,11 @@ inline v2u &operator*=(v2u &a, u32 b) {
 //
 inline v2 V2(f32 x, f32 y) {
     v2 result = { x, y };
+    return result;
+}
+
+inline v2 V2(v2s xy) {
+    v2 result = { cast(f32) xy.x, cast(f32) xy.y };
     return result;
 }
 
