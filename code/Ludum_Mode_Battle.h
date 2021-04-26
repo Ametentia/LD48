@@ -33,6 +33,7 @@ struct Mode_Battle {
     Memory_Allocator *alloc;
     Random random;
     Animation transition;
+    u8 song;
     f32 bpm;
     f32 intro_wait;
     f32 timer;

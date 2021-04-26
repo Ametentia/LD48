@@ -7,6 +7,7 @@ internal void ModeBattle(Game_State *state, Mode_Battle *battle, Temporary_Memor
     battle->alloc = alloc->alloc;
     battle->random = RandomSeed(time(NULL));
     u8 song = NextRandom(&battle->random)%2;
+    battle->song = song;
     battle->points = 0;
     battle->metronome = V2(-2.7, -0.2);
     battle->met_angle = 180;
@@ -106,6 +107,14 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
             u8 all_notes = battle->calls.hits >= battle->calls.total_notes;
             u8 all_calls = battle->calls.current_call > 4;
             if(all_notes || all_calls){
+                if(all_calls) {
+                    char exits[2][9] = {
+                        "finish_1", "finish_2"
+                    };
+                    Sound_Handle finale = GetSoundByName(&state->assets, exits[battle->song]);
+                    PlaySound(state, finale, 0.3, 0);
+
+                }
                 battle->done = 1;
                 return;
             }

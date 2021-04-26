@@ -24,6 +24,7 @@ struct Mode_Play {
     Tile *tile_arr;
     v2 tile_size;
     f32 tile_spacing;
+    Playing_Sound *music;
 };
 
 #endif  // LUDUM_MODE_PLAY_H_

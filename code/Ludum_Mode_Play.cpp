@@ -16,6 +16,8 @@ internal void ModePlay(Game_State *state) {
     play->player[1] = CreateAnimation(GetImageByName(&state->assets, "backward_walk"), 4, 1, 0.23);
     play->player[2] = CreateAnimation(GetImageByName(&state->assets, "right_walk"),    2, 1, 0.23);
     play->player[3] = CreateAnimation(GetImageByName(&state->assets, "left_walk"),     2, 1, 0.23);
+    Sound_Handle world_music = GetSoundByName(&state->assets, "overworld");
+    play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
 
     Random rng = RandomSeed(time(0));
     Image_Handle handles[] = {
@@ -64,6 +66,8 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         if(play->battle->done) {
             EndTemp(play->battle_mem);
             play->in_battle = 0;
+            Sound_Handle world_music = GetSoundByName(&state->assets, "overworld");
+            play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
         }
         return;
     }
@@ -120,6 +124,8 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         play->in_battle = 1;
         play->battle = AllocStruct(play->alloc, Mode_Battle);
         ModeBattle(state, play->battle, &play->battle_mem);
+        play->music->volume = 0;
+        play->music->flags = 0;
     }
 
     Animation *anim = play->last_anim;
