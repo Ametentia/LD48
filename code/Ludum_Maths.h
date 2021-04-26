@@ -52,6 +52,16 @@ inline u32 ABGRPack(v4 colour) {
     return result;
 }
 
+inline v2s V2S(s32 x, s32 y) {
+    v2s result = { x, y };
+    return result;
+}
+
+inline b32 IsEqual(v2s a, v2s b) {
+    b32 result = (a.x == b.x) && (a.y == b.y);
+    return result;
+}
+
 // v2u functions
 //
 inline v2u V2U(u32 x, u32 y) {
@@ -118,6 +128,11 @@ inline v2u &operator*=(v2u &a, u32 b) {
 //
 inline v2 V2(f32 x, f32 y) {
     v2 result = { x, y };
+    return result;
+}
+
+inline v2 V2(v2s xy) {
+    v2 result = { cast(f32) xy.x, cast(f32) xy.y };
     return result;
 }
 
@@ -717,6 +732,24 @@ inline mat4_inv CameraTransform(v3 x, v3 y, v3 z, v3 p) {
 
     result.inverse = Columns3x3(x, y, z);
     Translate(&result.inverse, -ip);
+
+    return result;
+}
+
+inline b32 Overlaps(rect2 a, rect2 b) {
+    b32 result =
+        (a.max.x > b.min.x) &&
+        (a.min.x < b.max.x) &&
+        (a.max.y > b.min.y) &&
+        (a.min.y < b.max.y);
+
+    return result;
+}
+
+inline b32 Contains(rect2 a, v2 p) {
+    b32 result =
+        (a.min.x < p.x) && (a.max.x > p.x)  &&
+        (a.min.y < p.y) && (a.max.y > p.y);
 
     return result;
 }

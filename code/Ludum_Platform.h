@@ -48,8 +48,8 @@ struct Game_Input {
     //
     Game_Controller controllers[5];
 
-    v2 mouse_clip;
-    v2 mouse_delta;
+    v3 mouse_clip;
+    v3 mouse_delta;
 
     Game_Button mouse_buttons[MouseButton_Count];
 
