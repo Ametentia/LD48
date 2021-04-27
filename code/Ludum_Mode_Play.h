@@ -56,6 +56,8 @@ struct Mode_Play {
 
     f32 transition_delay;
 
+    b32 end_screen;
+
     Player player;
     World world;
 
