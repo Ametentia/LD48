@@ -335,8 +335,17 @@ int main(int argc, char **argv) {
         //
         if (current_input->requested_quit) { running = false; }
 
+        rect2 render_region;
         v2u window_size = SDL2GetWindowSize();
-        Draw_Command_Buffer *command_buffer = renderer->BeginFrame(renderer, window_size);
+
+        v2 render_size;
+        render_size.x = 4 * (window_size.y / 3);
+        render_size.y = window_size.y;
+
+        render_region.min = (0.5 * (V2(window_size) - render_size));
+        render_region.max = render_region.min + render_size;
+
+        Draw_Command_Buffer *command_buffer = renderer->BeginFrame(renderer, render_region);
 
         // @Todo(James): Fix clock. This doesn't have any sort of time synchronisation
         //
