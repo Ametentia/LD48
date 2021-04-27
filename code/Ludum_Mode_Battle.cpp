@@ -234,8 +234,4 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
             }
         }
     }
-
-    if (JustPressed(controller->action)) {
-        battle->done = 1;
-    }
 }
