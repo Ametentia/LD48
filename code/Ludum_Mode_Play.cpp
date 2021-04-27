@@ -308,12 +308,6 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     }
     DrawAnimation(batch, player->animation, V3(player_world_pos), world->tile_size);
 
-#if 1
-    Room *ra = player->room;
-    Room *rb = &world->rooms[world->room_count - 1];
-    v2 dir = Normalise(rb->pos - ra->pos);
-    DrawLine(batch, player_world_pos, player_world_pos + (2 * dir), V4(0, 0, 1, 1), V4(0, 0, 1, 1), 0.05);
-#endif
 
     UpdateRenderEnemies(batch, world, dt, player->room);
 
