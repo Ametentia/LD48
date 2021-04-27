@@ -262,6 +262,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
                     player_tile->flags
                 };
                 player_tile->flags = TileFlag_ShopEmpty;
+                player_tile->shop_sprite = {0};
             }
         }
     }
@@ -269,8 +270,10 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         Tile *above_player = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y+1);
         if(above_player->flags&TileFlag_HasHermes && player->carrying){
             player->money -= player->item.cost;
-            if(player->item.flags&ItemFlag_ExtraString|ItemFlag_StringReinforcement){
-                play->health++;
+            if(player->item.flags & (ItemFlag_ExtraString|ItemFlag_StringReinforcement)){
+                if(play->health != 4){
+                    play->health++;
+                }
             }
             if(player->item.flags&ItemFlag_Repellant){
                 player->repellant_active = true;

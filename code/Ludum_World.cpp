@@ -351,7 +351,7 @@ internal void GenerateRoomLayout(World *world, Asset_Manager *assets, Room *room
 
         PlaceExitStructure(assets, world, room, world->layer_number, x, y);
     }
-    else if(RandomBetween(&world->rng, 0U, 10U) > 7){
+    else if(true){//RandomBetween(&world->rng, 0U, 10U) > 7){
         GenerateShop(world, assets, room);
     }
 }
