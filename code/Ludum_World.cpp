@@ -142,7 +142,7 @@ internal void GenerateShop(World *world, Asset_Manager *assets, Room *room){
                 *tile = tiles_arr[5];
             }
             else if(items < 4){
-                umm rand = RandomBetween(&rng, 0U, 3U);
+                umm rand = RandomBetween(&rng, 0U,4U);
                 *tile = tiles_arr[rand];
                 if(rand > 0){
                     items++;
@@ -351,7 +351,7 @@ internal void GenerateRoomLayout(World *world, Asset_Manager *assets, Room *room
 
         PlaceExitStructure(assets, world, room, world->layer_number, x, y);
     }
-    if(true){
+    else if(RandomBetween(&world->rng, 0U, 10U) > 7){
         GenerateShop(world, assets, room);
     }
 }

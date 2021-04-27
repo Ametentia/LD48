@@ -45,6 +45,9 @@ struct Player {
     Item item;
     bool carrying;
 
+    bool repellant_active;
+    f32 repellant_timer;
+
     Animation  walk_animations[4];
     Animation *animation;
 };

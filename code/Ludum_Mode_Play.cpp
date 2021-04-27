@@ -58,8 +58,11 @@ internal void ModePlay(Game_State *state) {
     player->carrying = false;
     player->item = {
         0,
+        0,
         0
     };
+    player->repellant_active = false;
+    player->repellant_timer = 0;
 
     player->animation = &world->player_animations[0];
 
@@ -72,6 +75,7 @@ internal void ModePlay(Game_State *state) {
 internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Command_Buffer *draw_buffer) {
     Mode_Play *play = state->play;
     World *world   = &play->world;
+
     if (play->in_battle) {
         UpdateRenderModeBattle(state, input, draw_buffer, play->battle);
         if (play->battle->done) {
@@ -118,6 +122,13 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
     Player *player = &play->player;
 
+     if(player->repellant_active){
+        player->repellant_timer-=dt;
+        if(player->repellant_timer <= 0){
+           player->repellant_active = false;
+        }
+    }
+
     if (play->level_state == LevelState_Playing) {
         MovePlayer(controller, world, dt, player);
     }
@@ -126,7 +137,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
     {
         Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
-        if (player_tile->flags & TileFlag_HasEnemy) {
+        if (player_tile->flags & TileFlag_HasEnemy && !player->repellant_active) {
             play->battle_mem = BeginTemp(play->alloc);
             play->battle     = AllocStruct(play->alloc, Mode_Battle);
             play->in_battle  = 1;
@@ -234,15 +245,19 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         Tile *above_player = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y+1);
         if(above_player->flags&TileFlag_HasHermes && player->carrying){
             player->money -= player->item.cost;
+            if(player->item.flags&ItemFlag_ExtraString|ItemFlag_StringReinforcement){
+                play->health++;
+            }
+            if(player->item.flags&ItemFlag_Repellant){
+                player->repellant_active = true;
+                player->repellant_timer = 30;
+            }
             player->item = {
                 0,
                 0,
                 0
             };
             player->carrying = false;
-            if(player->item.flags&ItemFlag_ExtraString){
-                // player->strings
-            }
         }
     }
 
@@ -264,7 +279,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
     UpdateAnimation(&world->enemy_animation, dt);
     UpdateAnimation(player->animation, dt);
-    if(true){//player->room->flags&RoomFlag_IsShop){
+    if(player->room->flags&RoomFlag_IsShop){
         UpdateAnimation(&player->room->hermes.anim, dt);
     }
     DrawAnimation(batch, player->animation, V3(player_world_pos), world->tile_size);
@@ -348,6 +363,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
                 Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
                 player_tile->flags &= ~TileFlag_HasEnemy;
+                
 
                 for (u32 it = 0; it < world->enemy_count; ++it) {
                     Enemy *enemy = &world->enemies[it];
