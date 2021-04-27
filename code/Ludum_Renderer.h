@@ -220,7 +220,7 @@ internal void DrawClear(Render_Batch *batch, v4 colour, b32 depth);
 internal void DrawQuad(Render_Batch *batch, Image_Handle image, v2 centre, v2 dim, f32 angle, v4 colour);
 internal void DrawQuad(Render_Batch *batch, Image_Handle image, v3 centre, v2 dim, f32 angle, v4 colour);
 internal void DrawQuad(Render_Batch *batch, Image_Handle image, v2 centre, f32 scale, f32 angle, v4 colour);
-internal void DrawQuad(Render_Batch *batch, Image_Handle image, v3 cetnre, f32 scale, f32 angle, v4 colour);
+internal void DrawQuad(Render_Batch *batch, Image_Handle image, v3 centre, f32 scale, f32 angle, v4 colour);
 internal void DrawQuadOutline(Render_Batch *batch, v2 centre, v2 dim, f32 angle, v4 colour, f32 thickness);
 internal void DrawLine(Render_Batch *batch, v2 start, v2 end, v4 start_colour, v4 end_colour, f32 thickness);
 internal void DrawCircle(Render_Batch *batch, Image_Handle image,
