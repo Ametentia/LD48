@@ -4,11 +4,13 @@
 
 enum Level_State {
     LevelState_Playing = 0,
-    LevelState_Transition,
-    LevelState_Next
+    LevelState_TransitionOut,
+    LevelState_TransitionIn,
+    LevelState_Next,
+    LevelState_TransitionBattle
 };
 
-// @Todo(James): These two structs are basically the same
+// @Todo(James): These two structs are the same
 //
 struct Enemy {
     Room *room;
@@ -30,6 +32,8 @@ struct Item{
 };
 
 struct Player {
+    Room *room;
+
     v2s grid_pos;
     v2s last_pos;
 
@@ -39,8 +43,6 @@ struct Player {
     umm money;
     Item item;
     bool carrying;
-
-    Room *room;
 
     Animation  walk_animations[4];
     Animation *animation;
@@ -56,25 +58,27 @@ struct Mode_Play {
     umm grid_position;
     Animation *last_anim;
 
-    u8 in_battle;
+    b32 in_battle;
     Temporary_Memory battle_mem;
     Mode_Battle *battle;
 
     Playing_Sound *music;
-    Level_State level_state;
-    Animation transition;
-    f32 transition_delay;
 
     World world;
 
     Player player;
+    s32 health;
+    Level_State level_state;
+
+    Animation transition_in;
+    Animation transition_out;
+    Animation battle_transition;
+
+    f32 transition_delay;
 
 
-    Animation enemy_animation;
-
-    u32 enemy_count;
-    Enemy *enemies;
-
+    // @Todo(James): Reuse this for overview map
+    //
     b32 debug_camera;
     v3 debug_camera_pos;
 };

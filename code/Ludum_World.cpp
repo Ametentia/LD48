@@ -28,20 +28,55 @@ internal b32 IsValid(Room *room, u32 x, u32 y) {
     return result;
 }
 
-internal void PlaceExitStructure(Asset_Manager *assets, Room *room, u32 layer, u32 x, u32 y) {
+internal Image_Handle GetBossImageFromLayer(Asset_Manager *manager, u32 layer) {
+    Image_Handle result = {};
+
+    const char *name = 0;
+    switch (layer) {
+        case 1: {
+            name = "hydra_overworld";
+        }
+        break;
+        case 2: {
+            name = "phoenix_overworld";
+        }
+        break;
+        case 3: {
+            name = "cronus_overworld";
+        }
+        break;
+        case 4: {
+            name = "hades_overworld";
+        }
+        break;
+    }
+
+    Assert(name);
+
+    result = GetImageByName(manager, name);
+    return result;
+}
+
+internal void PlaceExitStructure(Asset_Manager *assets, World *world, Room *room, u32 layer, u32 x, u32 y) {
     s32 stairs_index = (y * room->dim.x) + x;
+
+    Image_Handle ground_cover[] = {
+        { 0 },
+        GetImageByName(assets, "tile_00"),
+        GetImageByName(assets, "tile_01"),
+        GetImageByName(assets, "tile_02")
+    };
 
     for (u32 yi = (y - 3); yi < (y + 5); ++yi) {
         for (u32 xi = (x - 3); xi < (x + 5); ++xi) {
             Tile *t = &room->tiles[(yi * room->dim.x) + xi];
-            t->image = {};
+            t->image = ground_cover[RandomBetween(&world->rng, 0U, ArrayCount(ground_cover) - 1)];
             t->flags = 0;
         }
     }
 
-    Image_Handle stairs  = (layer == 6) ? GetImageByName(assets, "eurydice") : GetImageByName(assets, "stairs");
+    Image_Handle stairs  = (layer == 4) ? GetImageByName(assets, "eurydice") : GetImageByName(assets, "stairs");
     Image_Handle rock    = GetImageByName(assets, "rock");
-    Image_Handle brazier = GetImageByName(assets, "brazier_empty");
 
     s32 offsets[] = {
          cast(s32) room->dim.x,
@@ -63,7 +98,7 @@ internal void PlaceExitStructure(Asset_Manager *assets, Room *room, u32 layer, u
             tile->flags = TileFlag_IsExit;
         }
         else if (it == 7 || it == 8) {
-            tile->image = brazier;
+            tile->image = {};
             tile->flags = TileFlag_Occupied;
         }
         else {
@@ -71,6 +106,14 @@ internal void PlaceExitStructure(Asset_Manager *assets, Room *room, u32 layer, u
             tile->flags = TileFlag_Occupied;
         }
     }
+
+    world->boss_room  = room;
+    world->boss_pos   = V2S(x, y - 2);
+    world->boss_image = GetBossImageFromLayer(assets, world->layer_number);
+    world->boss_alive = true;
+
+    GetTileFromRoom(room, x    , y - 2)->flags |= TileFlag_HasBoss;
+    GetTileFromRoom(room, x + 1, y - 2)->flags |= TileFlag_HasBoss;
 }
 
 internal void GenerateShop(World *world, Asset_Manager *assets, Room *room){
@@ -235,6 +278,8 @@ internal void GenerateRoomLayout(World *world, Asset_Manager *assets, Room *room
         GetImageByName(assets, "tile_01"),
         GetImageByName(assets, "tile_02"),
         GetImageByName(assets, "object_00"),
+        GetImageByName(assets, "object_01"),
+        GetImageByName(assets, "object_02"),
         GetImageByName(assets, "rock")
     };
 
@@ -295,7 +340,7 @@ internal void GenerateRoomLayout(World *world, Asset_Manager *assets, Room *room
                 if (has_layer) {
                     tile->image = layer;
 
-                    if (layer_index >= ground_cover_count - 2) {
+                    if (layer_index >= ground_cover_count - 4) {
                         tile->flags |= TileFlag_Occupied;
                     }
                 }
@@ -307,7 +352,7 @@ internal void GenerateRoomLayout(World *world, Asset_Manager *assets, Room *room
         u32 x = RandomBetween(&world->rng, 5, room->dim.x - 5);
         u32 y = RandomBetween(&world->rng, 5, room->dim.y - 5);
 
-        PlaceExitStructure(assets, room, world->layer_number, x, y);
+        PlaceExitStructure(assets, world, room, world->layer_number, x, y);
     }
     if(true){
         GenerateShop(world, assets, room);
@@ -351,7 +396,7 @@ internal v2 RandomDir(Random *rng) {
     return result;
 }
 
-internal World CreateWorld(Memory_Allocator *alloc, Asset_Manager *assets, v2u dim, u32 layer_number) {
+internal World CreateWorld(Memory_Allocator *alloc, Asset_Manager *assets, v2u dim) {
     World result = {};
 
     result.alloc        = alloc;
@@ -360,11 +405,9 @@ internal World CreateWorld(Memory_Allocator *alloc, Asset_Manager *assets, v2u d
     result.max_room_dim = V2U(35, 35);
     result.world_dim    = dim;
 
-    result.layer_number = layer_number;
+    result.layer_number = 1;
 
-    u64 seed = (time(0) << 14) ^ 3290394023;
-    //result.rng          = RandomSeed(26531548851623);
-    result.rng          = RandomSeed(seed);
+    result.rng          = RandomSeed((time(0) << 14) ^ 3290394023);
 
     u32 max_room_count  = RandomBetween(&result.rng, 7, dim.x * dim.y);
     result.room_count   = 1;
@@ -449,6 +492,90 @@ internal World CreateWorld(Memory_Allocator *alloc, Asset_Manager *assets, v2u d
     return result;
 }
 
+internal void RecreateWorld(World *world, Asset_Manager *assets) {
+    world->layer_number += 1;
+
+    u32 max_room_count  = RandomBetween(&world->rng, 7, world->world_dim.x * world->world_dim.y);
+    world->room_count   = 1;
+    world->rooms        = AllocArray(world->alloc, Room, max_room_count);
+
+    Room *first = &world->rooms[0];
+    first->flags = RoomFlag_IsStart;
+
+    first->pos   = V2(0, 0);
+
+    first->dim.x = (RandomBetween(&world->rng, 12U, 35U) | 1);
+    first->dim.y = (RandomBetween(&world->rng, 12U, 35U) | 1);
+
+    Assert(((first->dim.x % 2) != 0) && ((first->dim.y % 2) != 0));
+
+    v2 grid_pos = V2(0, 0);
+
+    Room *prev = first;
+    v2 from_dir = V2(0, 0);
+    for (u32 it = 1; it < max_room_count; ++it) {
+        Room *room = &world->rooms[it];
+
+        v2 dir, new_pos;
+        v2u dim;
+
+        u32 tries = 10;
+        b32 placed = true;
+
+        while (true) {
+            dir = RandomDir(&world->rng);
+
+            v2 new_grid_pos = grid_pos + dir;
+            while (new_grid_pos.x < -(0.5 * world->world_dim.x) ||
+                   new_grid_pos.y < -(0.5 * world->world_dim.y) ||
+                   new_grid_pos.x >= (0.5 * world->world_dim.x) ||
+                   new_grid_pos.y >= (0.5 * world->world_dim.y))
+            {
+                dir = RandomDir(&world->rng);
+                new_grid_pos = grid_pos + dir;
+            }
+
+            dim.x = (RandomBetween(&world->rng, 12U, 35U) | 1);
+            dim.y = (RandomBetween(&world->rng, 12U, 35U) | 1);
+
+            Assert(((dim.x % 2) != 0) && ((dim.y % 2) != 0));
+
+            //new_pos = prev->pos + ((dir * 0.5 * V2(prev->dim)) + (dir * 0.5 * V2(dim)));
+            new_pos = prev->pos + (dir * V2(world->max_room_dim));
+
+            if (CanPlaceRoom(world, new_pos, dim)) {
+                grid_pos = new_grid_pos;
+                break;
+            }
+            else if (tries == 0) {
+                placed = false;
+                break;
+            }
+
+            tries -= 1;
+        }
+
+        if (!placed) { break; }
+
+        room->pos = new_pos;
+        room->dim = dim;
+
+        world->room_count += 1;
+
+        from_dir = dir;
+        prev = room;
+    }
+
+    prev->flags |= RoomFlag_HasExit;
+
+    for (u32 it = 0; it < world->room_count; ++it) {
+        Room *room = &world->rooms[it];
+        GenerateRoomLayout(world, assets, room);
+
+        AddConnections(world, assets, room);
+    }
+}
+
 internal void DrawRoom(Render_Batch *batch, World *world, Room *room) {
     v4 tile_colour = V4(196.0f / 255.0f, 240.0f / 255.0f, 194.0f / 255.0f, 1.0);
 
@@ -462,13 +589,13 @@ internal void DrawRoom(Render_Batch *batch, World *world, Room *room) {
             u32 index = (y * room->dim.x) + x;
             Tile *tile = &room->tiles[index];
 
-            v2 tile_pos = pos + (((-0.5f * V2(room->dim)) + V2(x, y)) * world->tile_size);
-
-            f32 angle = 0;
-            if (tile->flags & TileFlag_RoomTransition) { angle = GetDoorRotation(tile); }
-            else if (tile->flags & TileFlag_EdgeMask) { angle = GetBorderRotation(tile); }
-
             if (IsValid(tile->image)) {
+                v2 tile_pos = pos + (((-0.5f * V2(room->dim)) + V2(x, y)) * world->tile_size);
+
+                f32 angle = 0;
+                if (tile->flags & TileFlag_RoomTransition) { angle = GetDoorRotation(tile); }
+                else if (tile->flags & TileFlag_EdgeMask) { angle = GetBorderRotation(tile); }
+
                 DrawQuad(batch, tile->image, tile_pos, world->tile_size, angle);
                 if(tile->flags& TileFlag_ShopItem){
                     if (IsValid(tile->shop_sprite)) {

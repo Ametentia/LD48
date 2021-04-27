@@ -736,6 +736,14 @@ inline mat4_inv CameraTransform(v3 x, v3 y, v3 z, v3 p) {
     return result;
 }
 
+inline rect2 Rect2(rect3 r) {
+    rect2 result;
+    result.min = V2(r.min);
+    result.max = V2(r.max);
+
+    return result;
+}
+
 inline b32 Overlaps(rect2 a, rect2 b) {
     b32 result =
         (a.max.x > b.min.x) &&
