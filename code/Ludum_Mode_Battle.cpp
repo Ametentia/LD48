@@ -133,11 +133,25 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
     }
     f32 bar_progress = Min(cast(f32) battle->calls.hits/cast(f32)Max(battle->calls.total_notes, battle->calls.attempt_count), 1);
 
-    const char *enemies[4] = {
+    const char *enemies[8] = {
         "cyclops", 
         "harpie", 
         "gorgon", 
-        "skeleton" 
+        "skeleton",
+        "hydra",
+        "phoenix_01",
+        "cronus",
+        "hades"
+    };
+    const char *bars[8] = {
+        "cyclops_bar", 
+        "harpy_bar", 
+        "gorgon_bar", 
+        "skeleton_bar",
+        "hydra_bar",
+        "phoenix_admiration_bar",
+        "cronus_bar",
+        "hades_bar"
     };
 
     Image_Handle harp = GetImageByName(&state->assets, "player_strings");
@@ -146,7 +160,7 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
     Image_Handle sprite = GetImageByName(&state->assets, "player_backsprite");
     Image_Handle spotlight = GetImageByName(&state->assets, "spotlight");
     Image_Handle skele = GetImageByName(&state->assets, enemies[battle->enemy]);
-    Image_Handle bar = GetImageByName(&state->assets, "phoenix_admiration_bar");
+    Image_Handle bar = GetImageByName(&state->assets, bars[battle->enemy]);
     Image_Handle bar_fill = GetImageByName(&state->assets, "bar_fill");
     Image_Handle string_hurt = GetImageByName(&state->assets, "cross");
     DrawQuad(batch, spotlight, V2(1.8, 0.3), 2.5, 0, V4(1, 1, 1, 1));
