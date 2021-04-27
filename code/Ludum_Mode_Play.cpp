@@ -76,6 +76,10 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
             play->in_battle = 0;
             Sound_Handle world_music = GetSoundByName(&state->assets, "overworld");
             play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
+
+            if (play->health <= 0) {
+                play->end_screen = 2;
+            }
         }
 
         return;
@@ -97,10 +101,14 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         rect2 screen_bounds = Rect2(camera_bounds);
 
         Image_Handle background = GetImageByName(&state->assets, "end_screen");
+        if (play->end_screen == 2) {
+            background = GetImageByName(&state->assets, "game_over");
+        }
+
         DrawQuad(batch, background, V2(0, 0), screen_bounds.max - screen_bounds.min, 0, V4(1, 1, 1, 1));
 
         for (u32 it = 0; it < ArrayCount(controller->buttons); ++it) {
-            if (IsPressed(controller->buttons[it])) {
+            if (JustPressed(controller->buttons[it])) {
                 ModeMenu(state);
             }
         }
@@ -340,7 +348,14 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         v2 pos = V2(screen_bounds.min.x + 0.2, screen_bounds.max.y - 0.2f) + V2(0.05, -0.05);
         DrawQuad(batch, { 0 }, pos, V2(0.50, 0.50), 0, clear_colour);
 
-        Image_Handle image = GetImageByName(&state->assets, "health_full");
+        Image_Handle health[] = {
+            GetImageByName(&state->assets, "health_1"),
+            GetImageByName(&state->assets, "health_2"),
+            GetImageByName(&state->assets, "health_3"),
+            GetImageByName(&state->assets, "health_full")
+        };
+
+        Image_Handle image = health[play->health - 1];
         DrawQuad(batch, image, pos, 0.4, 0, V4(1, 1, 1, 1));
     }
 
