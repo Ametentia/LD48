@@ -30,6 +30,7 @@ internal void ModePlay(Game_State *state) {
     world->enemy_animation = CreateAnimation(GetImageByName(&state->assets, "enemy"), 2, 1, 0.45);
 
     world->brazier = CreateAnimation(GetImageByName(&state->assets, "brazier_spritesheet"), 2, 1, 0.1);
+    world->boss_alive = 1;
 
     // Allocate ememy array
     //
@@ -64,10 +65,14 @@ internal void ModePlay(Game_State *state) {
 //
 internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Command_Buffer *draw_buffer) {
     Mode_Play *play = state->play;
+    World *world   = &play->world;
     if (play->in_battle) {
         UpdateRenderModeBattle(state, input, draw_buffer, play->battle);
         if (play->battle->done) {
             EndTemp(play->battle_mem);
+            if(play->battle->boss) {
+                world->boss_alive = 0;
+            }
             play->in_battle = 0;
             Sound_Handle world_music = GetSoundByName(&state->assets, "overworld");
             play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
@@ -86,7 +91,6 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
     f32 dt = input->delta_time;
 
-    World *world   = &play->world;
     Player *player = &play->player;
 
     if (play->level_state == LevelState_Playing) {
@@ -112,10 +116,25 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
             play->level_state = LevelState_TransitionBattle;
         }
-        else if (player_tile->flags & TileFlag_HasBoss) {
-            //
-            // :boss_battle starts here
-            //
+        else if (player_tile->flags & TileFlag_HasBoss && world->boss_alive) {
+            play->battle_mem = BeginTemp(play->alloc);
+            play->battle     = AllocStruct(play->alloc, Mode_Battle);
+            play->in_battle  = 1;
+
+            play->battle->final_boss = 0;
+            ModeBattle(state, play->battle, &play->battle_mem);
+            play->battle->enemy = world->layer_number + 3;
+            play->battle->health = &play->health;
+            play->music->volume = 0;
+            play->music->flags = 0;
+            player_tile->flags &= ~TileFlag_HasEnemy;
+            play->battle->boss = 0;
+
+            play->battle->boss = 1;
+            if (world->layer_number == 4) {
+                play->battle->final_boss = 1;
+            }
+            play->level_state = LevelState_TransitionBattle;
         }
         else {
             Tile *last_tile = GetTileFromRoom(player->room, player->last_pos.x, player->last_pos.y);
@@ -127,6 +146,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
                     if (play->level_state == LevelState_Next) {
 
                         RecreateWorld(world, &state->assets);
+                        play->world.boss_alive = 1;
 
                         ZeroSize(world->enemies, 6 * world->world_dim.x * world->world_dim.y);
                         GenerateEnemies(&play->world);
@@ -258,6 +278,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
                 play->music->volume = 0;
                 play->music->flags  = 0;
+                play->battle->health = &play->health;
 
                 Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
                 player_tile->flags &= ~TileFlag_HasEnemy;
