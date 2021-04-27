@@ -16,6 +16,10 @@ internal void ModePlay(Game_State *state) {
 
     World *world = &play->world;
 
+    Player *player = &play->player;
+    play->health = 4;
+
+
     // Setup walk animations
     //
     world->player_animations[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.25);
@@ -43,7 +47,6 @@ internal void ModePlay(Game_State *state) {
 
     play->level_state = LevelState_TransitionOut;
 
-    Player *player = &play->player;
 
     // Player
     //
@@ -114,6 +117,18 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     {
         Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
         if (player_tile->flags & TileFlag_HasEnemy) {
+            play->battle_mem = BeginTemp(play->alloc);
+            play->battle     = AllocStruct(play->alloc, Mode_Battle);
+            play->in_battle  = 1;
+
+            play->battle->final_boss = 0;
+            ModeBattle(state, play->battle, &play->battle_mem);
+            play->battle->health = &play->health;
+            play->music->volume = 0;
+            play->music->flags = 0;
+            player_tile->flags &= ~TileFlag_HasEnemy;
+            play->battle->boss = 0;
+
             play->level_state = LevelState_TransitionBattle;
         }
         else if (player_tile->flags & TileFlag_HasBoss) {

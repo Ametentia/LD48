@@ -27,7 +27,7 @@ internal void *LinuxOpenGLAllocate(umm size) {
 internal RENDERER_BEGIN_FRAME(LinuxOpenGLBeginFrame) {
     OpenGL_State *gl = cast(OpenGL_State *) renderer;
 
-    Draw_Command_Buffer *result = OpenGLBeginFrame(gl, render_size);
+    Draw_Command_Buffer *result = OpenGLBeginFrame(gl, render_region);
     return result;
 }
 

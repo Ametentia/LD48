@@ -48,6 +48,10 @@ struct Mode_Play {
 
     Playing_Sound *music;
 
+    World world;
+
+    Player player;
+    s32 health;
     Level_State level_state;
 
     Animation transition_in;
@@ -57,9 +61,6 @@ struct Mode_Play {
     f32 transition_delay;
 
     b32 end_screen;
-
-    Player player;
-    World world;
 
     // @Todo(James): Reuse this for overview map
     //

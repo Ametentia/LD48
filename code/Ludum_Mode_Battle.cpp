@@ -6,35 +6,33 @@ internal f32 BpmToBps(f32 bpm) {
 internal void ModeBattle(Game_State *state, Mode_Battle *battle, Temporary_Memory *alloc) {
     battle->alloc = alloc->alloc;
     battle->random = RandomSeed(time(NULL));
-    u8 song = NextRandom(&battle->random)%2;
-    battle->song = song;
+    battle->calls = GetCall(&battle->random, battle->final_boss, battle->boss);
     battle->points = 0;
-    battle->metronome = V2(-2.7, -0.2);
+    battle->metronome = V2(-2.8, -0.2);
     battle->met_angle = 180;
     battle->met_flip_range = V2(-0.3, 0);
     battle->guide_height = 2;
     battle->dance_angle = 1;
     u8 bpms[2] = {
-        94, 87
+        87, 94
     };
-    battle->bpm = bpms[song];
+    battle->bpm = bpms[battle->calls.song];
     battle->intro_wait = 2;
     battle->wave = -1;
     battle->beat_wait = 8;
-    battle->met_speed = 6.8/8*BpmToBps(battle->bpm);
+    battle->enemy = NextRandom(&battle->random) % 4;
+    f32 speed = 6.2;
+    if(battle->final_boss){
+        speed = 5.6;
+    }
+    battle->met_speed = speed/8*BpmToBps(battle->bpm);
     char intros[2][8] = {
-        "intro_1", "intro_2"
+        "intro_2", "intro_p"
     };
-    Sound_Handle intro = GetSoundByName(&state->assets, intros[song]);
+    Sound_Handle intro = GetSoundByName(&state->assets, intros[battle->calls.song]);
     PlaySound(state, intro, 0.3, 0);
     battle->transition = CreateAnimation(GetImageByName(&state->assets, "transition_spritesheet"), 5, 2, 0.23);
 
-    battle->calls = GetCall(song);
-    u32 note_count = 0;
-    for(u8 i = 0; i < 5; i++){
-        note_count += battle->calls.calls[i].beat_count;
-    }
-    battle->calls.total_notes = note_count;
     
     battle->beat_textures = AllocArray(battle->alloc, Image_Handle, 4);
     battle->beat_textures[0] = GetImageByName(&state->assets, "up");
@@ -97,28 +95,29 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
         battle->timer = 0;
         battle->wave += 1;
         battle->beat_wait = 8;
-        battle->metronome.x = -2.7;
+        battle->metronome.x = -2.8;
         battle->met_angle = 180;
         battle->guide_height = 2;
         Call call = battle->calls.calls[battle->calls.current_call];
-        if(call.hits >= call.successThreshold) {
-            battle->calls.current_call += 1;
-            battle->calls.attempt_count += call.beat_count;
-            u8 all_notes = battle->calls.hits >= battle->calls.total_notes;
-            u8 all_calls = battle->calls.current_call > 4;
-            if(all_notes || all_calls){
-                if(all_calls) {
-                    char exits[2][9] = {
-                        "finish_1", "finish_2"
+        if(battle->wave>0) {
+            if(call.hits >= call.successThreshold ) {
+                battle->calls.current_call += 1;
+                battle->calls.attempt_count += call.beat_count;
+                u8 all_notes = battle->calls.hits >= battle->calls.total_notes;
+                u8 all_calls = battle->calls.current_call > battle->calls.call_count;
+                if(all_notes || all_calls){
+                    char exits[3][9] = {
+                        "finish_2", "finish_p"
                     };
-                    Sound_Handle finale = GetSoundByName(&state->assets, exits[battle->song]);
+                    Sound_Handle finale = GetSoundByName(&state->assets, exits[battle->calls.song]);
                     PlaySound(state, finale, 0.3, 0);
 
+                    battle->done = 1;
+                    return;
                 }
-                battle->done = 1;
-                return;
+            } else {
+                *battle->health -= 1;
             }
-
         }
         call = battle->calls.calls[battle->calls.current_call];
         battle->calls.calls[battle->calls.current_call].hits = 0;
@@ -134,14 +133,22 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
     }
     f32 bar_progress = Min(cast(f32) battle->calls.hits/cast(f32)Max(battle->calls.total_notes, battle->calls.attempt_count), 1);
 
+    const char *enemies[4] = {
+        "cyclops", 
+        "harpie", 
+        "gorgon", 
+        "skeleton" 
+    };
+
     Image_Handle harp = GetImageByName(&state->assets, "player_strings");
     Image_Handle enemyBox = GetImageByName(&state->assets, "enemy_strings");
     Image_Handle metronome = GetImageByName(&state->assets, "arrow");
     Image_Handle sprite = GetImageByName(&state->assets, "player_backsprite");
     Image_Handle spotlight = GetImageByName(&state->assets, "spotlight");
-    Image_Handle skele = GetImageByName(&state->assets, "phoenix_01");
+    Image_Handle skele = GetImageByName(&state->assets, enemies[battle->enemy]);
     Image_Handle bar = GetImageByName(&state->assets, "phoenix_admiration_bar");
     Image_Handle bar_fill = GetImageByName(&state->assets, "bar_fill");
+    Image_Handle string_hurt = GetImageByName(&state->assets, "cross");
     DrawQuad(batch, spotlight, V2(1.8, 0.3), 2.5, 0, V4(1, 1, 1, 1));
     DrawQuad(batch, sprite, V2(-2, -1.7), 2.5, 0, V4(1, 1, 1, 1));
     DrawQuad(batch, harp, V2(1.6, -1.5), 4, 0, V4(1, 1, 1, 1));
@@ -151,6 +158,10 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
     DrawQuad(batch, bar, V2(-1.6, 2.35), 4, 0, V4(1, 1, 1, 1));
     DrawQuad(batch, {0}, V2(-4.1, 2.36), V2(1,1.3), 0, V4(0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
     DrawQuad(batch, {0}, V2(-3.83, 2.5), V2(0.5,0.05), 0, V4(0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
+    for(u8 i = 0; i < 4-*battle->health; i++) {
+        f32 height = -1.1 - 0.29*i;
+        DrawQuad(batch, string_hurt, V2(0, height), 0.2, 0, V4(1,1,1,1));
+    }
     v2 lineHeight = V2(battle->metronome.x, battle->metronome.y+battle->guide_height);
     DrawLine(batch, battle->metronome, lineHeight, V4(1,1,1,1));
     DrawQuad(batch, metronome, battle->metronome, 0.4, Radians(battle->met_angle), V4(1, 1, 1, 1));
@@ -162,6 +173,10 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
             callSet->calls[callSet->current_call].beat_shown = cpu_beat+1;
             Button button = callSet->calls[callSet->current_call].beatButtons[cpu_beat];
             callSet->calls[callSet->current_call].pos[cpu_beat] = V2(battle->metronome.x, 1.4 - 0.23 * button);
+            if(!battle->final_boss) {
+                Sound_Handle intro = GetSoundByName(&state->assets, callSet->calls[callSet->current_call].note_enemy_names[button]);
+                PlaySound(state, intro, 0.3, 0);
+            }
         }
     }
     u8 note_hit = 0;
@@ -200,6 +215,8 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_
                 };
                 Sound_Handle intro = GetSoundByName(&state->assets, sounds[NextRandom(&battle->random) % 2]);
                 PlaySound(state, intro, 0.3, 0);
+                s8 hits = battle->calls.calls[battle->calls.current_call].hits;
+                battle->calls.calls[battle->calls.current_call].hits = Max(0, hits);
             }
         }
     }
