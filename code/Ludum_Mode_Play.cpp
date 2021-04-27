@@ -7,248 +7,291 @@ internal void ModePlay(Game_State *state) {
     Mode_Play *play = AllocStruct(&state->mode_alloc, Mode_Play);
     play->alloc = &state->mode_alloc;
     play->temp = state->temp;
-    play->player_position = V2(0, 0);
-    play->map_size = V2(10,12);
-    play->tile_arr = AllocArray(play->alloc, Tile, play->map_size.x*play->map_size.y);
-    play->tile_size = V2(0.5,0.5);
-    play->tile_spacing = 0;
-    play->is_shop = true;
-    play->money = 100;
-    play->shop_data.shop_tiles = AllocArray(play->alloc, Shop_Tile, 9);
-    play->shop_data.tile_indexes = AllocArray(play->alloc, umm, 9);
-    
-    play->player[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.23);
-    play->player[1] = CreateAnimation(GetImageByName(&state->assets, "backward_walk"), 4, 1, 0.23);
-    play->player[2] = CreateAnimation(GetImageByName(&state->assets, "right_walk"),    2, 1, 0.23);
-    play->player[3] = CreateAnimation(GetImageByName(&state->assets, "left_walk"),     2, 1, 0.23);
-    play->last_anim = &play->player[0];
+    Sound_Handle world_music = GetSoundByName(&state->assets, "overworld");
+    play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
 
-    play->hermes = CreateAnimation(GetImageByName(&state->assets, "hermes_overworld"),  2, 1, 0.23);
+    // World gen stuff
+    //
+    play->world = CreateWorld(play->alloc, &state->assets, V2U(5, 5), 1);
+
+    World *world = &play->world;
+
+    Player *player = &play->player;
+
+    u32 min_enemy_count = world->room_count + (world->room_count / 2);
+    u32 max_enemy_count = 4 * world->room_count;
+    Assert(min_enemy_count < max_enemy_count);
+
+    play->enemy_count = RandomBetween(&world->rng, min_enemy_count, max_enemy_count);
+    play->enemies     = AllocArray(play->alloc, Enemy, play->enemy_count);
+
+    play->transition = CreateAnimation(GetImageByName(&state->assets, "transition_spritesheet"), 5, 2, 0.1);
+
+    play->enemy_animation = CreateAnimation(GetImageByName(&state->assets, "enemy"), 2, 1, 0.45);
+    for (u32 it = 0; it < play->enemy_count; ++it) {
+        Enemy *enemy = &play->enemies[it];
+
+        u32 room_index = RandomBetween(&world->rng, 0U, world->room_count - 1);
+        Room *room = &world->rooms[room_index];
+        while (room->enemy_count == 4) {
+            room_index = RandomBetween(&world->rng, 0U, world->room_count - 1);
+            room = &world->rooms[room_index];
+        }
+
+        room->enemy_count += 1;
+        enemy->room = room;
+
+        enemy->alive = true;
+
+        enemy->move_timer = RandomUnilateral(&world->rng);
+
+        enemy->grid_pos.x = RandomBetween(&world->rng, 0U, enemy->room->dim.x);
+        enemy->grid_pos.y = RandomBetween(&world->rng, 0U, enemy->room->dim.y);
+
+        enemy->animation = &play->enemy_animation;
+    }
+    
+    // Setup walk animations
+    //
+    player->walk_animations[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.25);
+    player->walk_animations[1] = CreateAnimation(GetImageByName(&state->assets, "backward_walk"), 4, 1, 0.25);
+    player->walk_animations[2] = CreateAnimation(GetImageByName(&state->assets, "right_walk"),    2, 1, 0.25);
+    player->walk_animations[3] = CreateAnimation(GetImageByName(&state->assets, "left_walk"),     2, 1, 0.25);
+
+    // Player
+    //
+    player->room     = &world->rooms[0];
+    player->grid_pos = V2S(player->room->dim.x / 2, player->room->dim.y / 2);
+    player->last_pos = player->grid_pos;
+    player->money    = 100;
+    player->carrying = false;
+
+    player->animation = &player->walk_animations[0];
 
     state->mode = GameMode_Play;
     state->play = play;
-    GenerateShop(state, play);
-    Random rng = RandomSeed(time(0));
-    Image_Handle handles[] = {
-        { 0 },
-        GetImageByName(&state->assets, "tile_00"),
-        GetImageByName(&state->assets, "tile_01"),
-        GetImageByName(&state->assets, "tile_02"),
-        GetImageByName(&state->assets, "object_00"),
-        GetImageByName(&state->assets, "object_01")
-    };
-    play->last_anim = &play->player[0];
-    for(umm i = 0; i < play->map_size.x; i++){
-        for(umm j = 0; j <play->map_size.y; j++){
-            play->tile_arr[i*(umm)play->map_size.x+j].texture = handles[RandomChoice(&rng, ArrayCount(handles))];
-        }
-    }
-}
-
-internal void GenerateShop(Game_State *state, Mode_Play *play){
-    Shop_Tile *tiles_arr = AllocArray(play->alloc, Shop_Tile, 4);
-    tiles_arr[0] = {
-        V2(1,1),
-        {0},
-        GetImageByName(&state->assets, "shop_tile"),
-        0,
-        0,
-        false
-    };
-    tiles_arr[1] = {
-        V2(1,1),
-        GetImageByName(&state->assets, "apollo_amulet"),
-        GetImageByName(&state->assets, "shop_tile"),
-        10,
-        0.3f,
-        false
-    };
-    tiles_arr[2] = {
-        V2(1,1),
-        GetImageByName(&state->assets, "extra_string"),
-        GetImageByName(&state->assets, "shop_tile"),
-        10,
-        0.4f,
-        false
-    };
-    tiles_arr[3] = {
-        V2(1,1),
-        GetImageByName(&state->assets, "string_reinforcement"),
-        GetImageByName(&state->assets, "shop_tile"),
-        10,
-        0.2f,
-        false
-    };
-    tiles_arr[4] = {
-        V2(1,1),
-        {0},
-        GetImageByName(&state->assets, "shop_tile"),
-        10,
-        0.2f,
-        true
-    };
-
-    Random rng = RandomSeed(time(0));
-    v2 shop_tiles_grid = V2(3,3);
-    umm items = 0;
-    bool hermes = false;
-    for(umm i = 0; i < shop_tiles_grid.x; i++){
-        for(umm j = 0; j < shop_tiles_grid.y; j++){
-            umm index = i*(umm)shop_tiles_grid.x+j;
-            play->shop_data.tile_indexes[index] = ((((umm)(play->map_size.x/2))-1+j)*(umm)play->map_size.x + ((umm)(play->map_size.y/2))-1+i)-1;
-            if(items < 5){
-                umm rand = RandomBetween(&rng, 0U, 3U);
-                play->shop_data.shop_tiles[index] = tiles_arr[rand];
-                if(rand > 0){
-                    items++;
-                }
-            }
-            else{
-                if(hermes){
-                    play->shop_data.shop_tiles[index] = tiles_arr[0];
-                }
-                else{
-                    play->shop_data.shop_tiles[index] = tiles_arr[4];
-                    hermes=true;
-                }
-            }
-        }
-    }
-}
-
-// Returns if an index is in the shop's tiles
-//
-internal bool InShop(umm index, Mode_Play *play){
-    for(umm i = 0; i < 9; i++){
-        if(index == play->shop_data.tile_indexes[i]){
-            return true;
-        }
-    }
-    return false;
-}
-
-internal umm GetShopTile(umm index, Mode_Play *play){
-    for(umm i = 0; i < 9; i++){
-        if(index == play->shop_data.tile_indexes[i]){
-            return i;
-        }
-    }
-    return 0;
-}
-
-// Draw map based on size, tile dimensions and tile spacing
-//
-internal void DrawMap(Render_Batch *batch, Mode_Play *play, v2 size, v2 tile_dims, f32 spacing, f32 dt){
-    umm shop_tile_count = 0;
-    for(umm i = 0; i < size.x; i++){
-        for(umm j = 0; j < size.y; j++){
-            Image_Handle texture = play->tile_arr[i*(umm)play->map_size.x+j].texture;
-            v2 pos = V2(i*(tile_dims.x+spacing), j*(tile_dims.y+spacing));
-            DrawQuad(batch, {0}, pos, V2(tile_dims.x,tile_dims.y), 0, V4(196/255.0, 240/255.0, 194/255.0, 1));
-            if(play->is_shop && InShop(i*(umm)size.x+j, play)){
-                umm shop_tile_index = GetShopTile(i*(umm)size.x+j, play);
-                DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_index].bg_texture, pos, V2(tile_dims.x,tile_dims.y));
-                if(IsValid(play->shop_data.shop_tiles[shop_tile_index].tile.texture)){
-                    DrawQuad(batch, play->shop_data.shop_tiles[shop_tile_index].tile.texture, pos, V2(tile_dims.x,tile_dims.y));
-                }
-                if(play->shop_data.shop_tiles[shop_tile_index].hermes){
-                    UpdateAnimation(&play->hermes, dt);
-                    DrawAnimation(batch, &play->hermes, dt, V3(pos), V2(0.6,0.6));
-                }
-            }
-            else if(IsValid(texture)){
-                DrawQuad(batch, texture, pos, V2(tile_dims.x,tile_dims.y));
-            }
-            play->tile_arr[i*(umm)size.x+j].pos = pos;
-        }
-    }
 }
 
 // This is where most of the game logic will happen
 //
 internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Command_Buffer *draw_buffer) {
     Mode_Play *play = state->play;
-    if(play->in_battle) {
+    if (play->in_battle) {
         UpdateRenderModeBattle(state, input, draw_buffer, play->battle);
-        if(play->battle->done) {
+        if (play->battle->done) {
             EndTemp(play->battle_mem);
             play->in_battle = 0;
+            Sound_Handle world_music = GetSoundByName(&state->assets, "overworld");
+            play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
         }
+
         return;
     }
 
-    Render_Batch _batch = CreateRenderBatch(draw_buffer, &state->assets,
-            V4(0.0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
+    v4 clear_colour = V4(0.0, 41.0 / 255.0, 45.0 / 255.0, 1.0);
+
+    Render_Batch _batch = CreateRenderBatch(draw_buffer, &state->assets, clear_colour);
     Render_Batch *batch = &_batch;
 
     Game_Controller *controller = GameGetController(input, 1);
-
-    if (!controller->connected) {
-        controller = GameGetController(input, 0);
-    }
+    if (!controller->connected) { controller = GameGetController(input, 0); }
 
     f32 dt = input->delta_time;
 
-    f32 dx = play->tile_size.x+play->tile_spacing;
-    f32 dy = play->tile_size.y+play->tile_spacing;
+    World *world   = &play->world;
+    Player *player = &play->player;
 
-    if (JustPressed(controller->left)) {
-        if (play->player_position.x != 0) {
-            play->player_position -= V2(dx, 0);
-        }
-        
-        play->grid_position -= (umm)play->map_size.x;
-        play->last_anim = &play->player[3];
+    if (play->level_state == LevelState_Playing) {
+        MovePlayer(controller, world, dt, player);
     }
 
-    if (JustPressed(controller->right)) {
-        if (play->player_position.x + dx < dx * play->map_size.x) {
-            play->player_position += V2(dx, 0);
+    v2 player_world_pos = GetPlayerWorldPosition(world, player);
+
+    {
+        Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
+        if (player_tile->flags & TileFlag_HasEnemy) {
+            play->battle_mem = BeginTemp(play->alloc);
+            play->battle     = AllocStruct(play->alloc, Mode_Battle);
+            play->in_battle  = 1;
+
+            ModeBattle(state, play->battle, &play->battle_mem);
+            play->music->volume = 0;
+            play->music->flags = 0;
+            player_tile->flags &= ~TileFlag_HasEnemy;
+
+            for (u32 it = 0; it < play->enemy_count; ++it) {
+                Enemy *enemy = &play->enemies[it];
+
+                if (IsEqual(enemy->grid_pos, player->grid_pos)) {
+                    enemy->alive = false;
+                }
+            }
         }
-        play->grid_position += (umm)play->map_size.x;
-        play->last_anim = &play->player[2];
-    }
+        else {
+            Tile *last_tile = GetTileFromRoom(player->room, player->last_pos.x, player->last_pos.y);
+            if (last_tile->flags & TileFlag_IsExit) {
+                if (world->layer_number == 6) {
+                    input->requested_quit = true;
+                }
+                else {
+                    if (play->level_state == LevelState_Next) {
+                        play->world =
+                            CreateWorld(play->alloc, &state->assets, V2U(5, 5), world->layer_number + 1);
 
-    if (JustPressed(controller->up)) {
-        if (play->player_position.y + dy < dy * play->map_size.y) {
-            play->player_position += V2(0, dy);
-        }
-        play->grid_position++;
-        play->last_anim = &play->player[1];
-    }
+                        player->room = &world->rooms[0];
+                        player->grid_pos = V2S(player->room->dim.x / 2, player->room->dim.y / 2);
+                        player->last_pos = player->grid_pos;
 
-    if (JustPressed(controller->down)) {
-        if (play->player_position.y != 0) {
-            play->player_position -= V2(0, dy);
-        }
-        play->grid_position--;
-        play->last_anim = &play->player[0];
-    }
+                        player->animation = &player->walk_animations[0];
 
-    
+                        ResetAnimation(&play->transition);
+                        play->transition_delay = 0;
 
-    if (JustPressed(controller->interact)) {
-        if(play->is_shop && InShop(play->grid_position, play)){
-            umm shop_index = GetShopTile(play->grid_position, play);
-            Shop_Tile current_shop_tile = play->shop_data.shop_tiles[shop_index];
-            if(current_shop_tile.cost > 0 && play->money >= current_shop_tile.cost){
-                play->money -= current_shop_tile.cost;
-                //buy sound play here?
-                play->shop_data.shop_tiles[shop_index].tile.texture = { 0 };
-                play->shop_data.shop_tiles[shop_index].cost = 0;
+                        play->level_state = LevelState_Playing;
+                        return;
+                    }
+                    else {
+                        play->level_state = LevelState_Transition;
+                    }
+                }
             }
         }
     }
 
-    Animation *anim = play->last_anim;
 
-    SetCameraTransform(batch, 0, V3(1, 0, 0), V3(0, 1, 0), V3(0, 0, 1), V3(play->player_position, 6));
+    // @Debug: Debug camera stuff
+    //
+    if (JustPressed(input->f[2])) {
+        play->debug_camera = !play->debug_camera;
+        if (play->debug_camera) {
+            play->debug_camera_pos = V3(RoomGridToWorld(world, player->room, player->grid_pos), 10);
+        }
+    }
 
-    UpdateAnimation(&play->player[0], dt);
-    UpdateAnimation(&play->player[1], dt);
-    UpdateAnimation(&play->player[2], dt);
-    UpdateAnimation(&play->player[3], dt);
+    if (play->debug_camera) {
+        if (IsPressed(input->mouse_buttons[MouseButton_Left])) {
+            play->debug_camera_pos -= V3((Abs(play->debug_camera_pos.z) * 0.8 * V2(input->mouse_delta)));
+        }
+        play->debug_camera_pos.z += input->mouse_delta.z;
+        if (play->debug_camera_pos.z < 5) { play->debug_camera_pos.z = 5; }
+        else if (play->debug_camera_pos.z > 125) { play->debug_camera_pos.z = 125; }
+    }
 
-    DrawMap(batch, play, play->map_size, play->tile_size, play->tile_spacing, dt);
-    DrawAnimation(batch, anim, dt, V3(play->player_position), V2(0.6, 0.6));
+    if (JustPressed(controller->interact)) {
+        Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
+        Tile *above_player = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y+1);
+        umm cost = 10;
+        if(player_tile->flags&TileFlag_ShopItem){
+            if(player->money >= cost && !player->carrying){
+                player->carrying = true;
+                player->item = {
+                    10,
+                    0.2f
+                };
+                player_tile->flags = 0x2000;
+            }
+        }
+    }
+    if (JustPressed(controller->action)) {
+        if(above_player->flags&TileFlag_HasHermes && player->carrying){
+            player->money -= cost;
+            player->item = {
+                0,
+                0
+            };
+            player->carrying = false;
+        }
+    }
+
+    // Set camera transform
+    //
+    v3 camera_pos = (play->debug_camera) ? play->debug_camera_pos : V3(player_world_pos, 6);
+    SetCameraTransform(batch, 0, V3(1, 0, 0), V3(0, 1, 0), V3(0, 0, 1), camera_pos);
+
+    // Draw active world
+    //
+    DrawRoom(batch, world, player->room);
+
+    // if(player->carrying && GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y)->flags&TileFlag_ShopItem|TileFlag_ShopEmpty){
+    //     DrawQuad(batch, )
+    // }
+
+    UpdateAnimation(&play->enemy_animation, dt);
+    UpdateAnimation(player->animation, dt);
+    if(true){//player->room->flags&RoomFlag_IsShop){
+        UpdateAnimation(&player->room->hermes, dt);
+    }
+    DrawAnimation(batch, player->animation, V3(player_world_pos), world->tile_size);
+
+#if 1
+    Room *ra = player->room;
+    Room *rb = &world->rooms[world->room_count - 1];
+    v2 dir = Normalise(rb->pos - ra->pos);
+    DrawLine(batch, player_world_pos, player_world_pos + (2 * dir), V4(0, 0, 1, 1), V4(0, 0, 1, 1), 0.05);
+#endif
+
+    for (u32 it = 0; it < play->enemy_count; ++it) {
+        Enemy *enemy = &play->enemies[it];
+        if (!enemy->alive) { continue; }
+
+        enemy->move_timer += dt;
+
+        enemy->move_delay_timer -= dt;
+        if (enemy->move_delay_timer < 0) {
+            v2 dir = RandomDir(&world->rng);
+            s32 x = cast(s32) dir.x;
+            s32 y = cast(s32) dir.y;
+
+            v2s target_pos;
+            target_pos.x = enemy->grid_pos.x + x;
+            target_pos.y = enemy->grid_pos.y + y;
+            if (IsValid(enemy->room, target_pos.x, target_pos.y)) {
+                enemy->last_pos = enemy->grid_pos;
+                enemy->grid_pos = target_pos;
+                enemy->move_timer = 0;
+
+                Tile *old_tile = GetTileFromRoom(enemy->room, enemy->last_pos.x, enemy->last_pos.y);
+                old_tile->flags &= ~TileFlag_HasEnemy;
+
+                Tile *new_tile = GetTileFromRoom(enemy->room, enemy->grid_pos.x, enemy->grid_pos.y);
+                new_tile->flags |= TileFlag_HasEnemy;
+            }
+
+            enemy->move_delay_timer = 0.5;
+        }
+
+        v2 world_pos;
+        if (!IsEqual(enemy->grid_pos, enemy->last_pos)) {
+            f32 alpha = enemy->move_timer / 0.15f;
+            v2 a = RoomGridToWorld(world, enemy->room, enemy->grid_pos);
+            v2 b = RoomGridToWorld(world, enemy->room, enemy->last_pos);
+
+            world_pos = Lerp(a, b, alpha);
+
+            if (alpha >= 1) {
+                enemy->last_pos = enemy->grid_pos;
+                world_pos = RoomGridToWorld(world, enemy->room, enemy->grid_pos);
+            }
+        }
+        else {
+            world_pos = RoomGridToWorld(world, enemy->room, enemy->grid_pos);
+        }
+
+        if (enemy->room == player->room) {
+            DrawAnimation(batch, enemy->animation, V3(world_pos), world->tile_size);
+        }
+    }
+
+    if (play->level_state == LevelState_Transition) {
+        if (!IsFinished(&play->transition)) {
+            UpdateAnimation(&play->transition, dt);
+        }
+        else {
+            play->transition_delay += dt;
+            if (play->transition_delay >= 0.9) {
+                play->level_state = LevelState_Next;
+            }
+        }
+        DrawAnimation(batch, &play->transition, V3(player_world_pos), V2(10, 10));
+    }
 }

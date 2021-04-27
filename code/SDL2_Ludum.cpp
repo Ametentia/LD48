@@ -141,6 +141,8 @@ internal void SDL2HandleInput(Game_Input *current_input, Game_Input *prev_input)
         current_kb->buttons[it].transistions = 0;
     }
 
+    current_input->mouse_clip.z = prev_input->mouse_clip.z;
+
     //
     // Event handling
     //
@@ -155,6 +157,11 @@ internal void SDL2HandleInput(Game_Input *current_input, Game_Input *prev_input)
             case SDL_KEYDOWN:
             case SDL_KEYUP: {
                 SDL2HandleKeyboardEvent(current_kb, &event.key);
+            }
+            break;
+
+            case SDL_MOUSEWHEEL: {
+                current_input->mouse_clip.z -= event.wheel.y;
             }
             break;
 
@@ -283,7 +290,7 @@ internal void SDL2OutputSounds(Game_Context *context, Sound_Buffer *sound_buffer
     sound_buffer->sample_count = frame_sample_size / sizeof(s16);
     LudumOutputSoundSamples(context, sound_buffer);
 
-    SDL_QueueAudio(global_audio_device, sound_buffer->samples, sound_buffer->sample_count * sizeof(s16));
+    SDL_QueueAudio(global_audio_device, sound_buffer->samples, frame_sample_size);
 }
 
 internal u64 SDL2GetCurrentTicks() {

@@ -1,0 +1,156 @@
+internal CallSet GetCall(u8 num) {
+    CallSet encounters[2] = {
+        {
+            {
+                {
+                    {0,0.5,1,1.5,2},
+                    {Button_Up, Button_Up, Button_Up, Button_Down, Button_Up},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "0_call",
+                    {"0X_harp_d",
+                    "0X_harp_c",
+                    "e3",
+                    "f3"}
+                },{
+                    {0,0.5,1,1.5,2},
+                    {Button_Up, Button_Up, Button_Up, Button_Down, Button_Up},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "1_call",
+                    {"0X_harp_d",
+                    "0X_harp_c",
+                    "e3",
+                    "f3"}
+                },{
+                    {0,0.5,1,1.5,2},
+                    {Button_Down, Button_Right, Button_Down, Button_Up, Button_Left},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "2_call",
+                    {"0X_harp_d",
+                    "0X_harp_c",
+                    "e3",
+                    "f3"}
+                },{
+                    {0,0.5,1,1.5,2},
+                    {Button_Down, Button_Down, Button_Up, Button_Right, Button_Left},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "3_call",
+                    {"4X_harp_d",
+                    "4X_harp_d5",
+                    "4X_harp_d5trip",
+                    "4X_harp_g"}
+                },{
+                    {0,0.5,1,1.5,2},
+                    {Button_Down, Button_Down, Button_Up, Button_Right, Button_Left},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "4_call",
+                    {"4X_harp_d",
+                    "4X_harp_d5",
+                    "4X_harp_d5trip",
+                    "4X_harp_g"}
+                }
+            },
+            0
+        },{
+            {
+                {
+                    {0,0.5,0.75,1.25,1.5},
+                    {Button_Up, Button_Down, Button_Right, Button_Left, Button_Up},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "0_call_2",
+                    {"0X_harp_d",
+                    "a3",
+                    "g3",
+                    "f3"}
+                },{
+                    {0,0.5,0.75,1.25,1.5},
+                    {Button_Up, Button_Down, Button_Right, Button_Left, Button_Up},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "1_call_2",
+                    {"0X_harp_d",
+                    "a3",
+                    "g3",
+                    "f3"}
+                },{
+                    {0,0.5,0.75,1.25,1.5},
+                    {Button_Up, Button_Down, Button_Right, Button_Left, Button_Up},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "2_call_2",
+                    {"0X_harp_d",
+                    "a3",
+                    "g3",
+                    "f3"}
+                },{
+                    {0,0.5,0.75,1.25,1.5},
+                    {Button_Up, Button_Down, Button_Right, Button_Left, Button_Up},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "3_call_2",
+                    {"0X_harp_d",
+                    "a3",
+                    "g3",
+                    "f3"}
+                },{
+                    {0,0.5,0.75,1.25,1.5},
+                    {Button_Up, Button_Down, Button_Right, Button_Left, Button_Up},
+                    5,
+                    4,
+                    {},
+                    {},
+                    0,
+                    0,
+                    "4_call_2",
+                    {"0X_harp_d",
+                    "a3",
+                    "g3",
+                    "f3"}
+                }
+            },
+            0
+        }
+    };
+    return encounters[num];
+}

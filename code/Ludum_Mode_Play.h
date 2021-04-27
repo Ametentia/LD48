@@ -2,23 +2,50 @@
 #define LUDUM_MODE_PLAY_H_
 #include "Ludum_Mode_Battle.h"
 
-struct Tile {
-    v2 pos;
-    Image_Handle texture;
+enum Level_State {
+    LevelState_Playing = 0,
+    LevelState_Transition,
+    LevelState_Next
 };
 
-struct Shop_Tile{
-    Tile tile;
-    Image_Handle bg_texture;
+// @Todo(James): These two structs are basically the same
+//
+struct Enemy {
+    Room *room;
+
+    v2s grid_pos;
+    v2s last_pos;
+
+    f32 move_timer;
+    f32 move_delay_timer;
+
+    Animation *animation;
+
+    b32 alive;
+};
+
+struct Item{
     umm cost;
     f32 steal_chance;
-    bool hermes;
 };
 
-struct Shop{
-    Shop_Tile *shop_tiles;
-    umm *tile_indexes;
+struct Player {
+    v2s grid_pos;
+    v2s last_pos;
+
+    f32 move_timer;
+    f32 move_delay_timer;
+
+    umm money;
+    Item item;
+    bool carrying;
+
+    Room *room;
+
+    Animation  walk_animations[4];
+    Animation *animation;
 };
+
 struct Mode_Play {
     Memory_Allocator *alloc;
     Memory_Allocator *temp;
@@ -27,22 +54,29 @@ struct Mode_Play {
     //
     v2 player_position;
     umm grid_position;
-    Animation player[4];
     Animation *last_anim;
-    umm money;
 
     u8 in_battle;
     Temporary_Memory battle_mem;
     Mode_Battle *battle;
 
-    v2 map_size;
-    bool is_shop;
-    Tile *tile_arr;
-    v2 tile_size;
-    f32 tile_spacing;
-    Shop shop_data;
+    Playing_Sound *music;
+    Level_State level_state;
+    Animation transition;
+    f32 transition_delay;
 
-    Animation hermes;
+    World world;
+
+    Player player;
+
+
+    Animation enemy_animation;
+
+    u32 enemy_count;
+    Enemy *enemies;
+
+    b32 debug_camera;
+    v3 debug_camera_pos;
 };
 
 internal void GenerateShop(Game_State *state, Mode_Play *play);

@@ -24,11 +24,16 @@ struct Call {
 struct CallSet {
     Call calls[5];
     u32 current_call;
+    u32 hits;
+    u32 total_notes;
+    u32 attempt_count;
 };
 
 struct Mode_Battle {
     Memory_Allocator *alloc;
     Random random;
+    Animation transition;
+    u8 song;
     f32 bpm;
     f32 intro_wait;
     f32 timer;

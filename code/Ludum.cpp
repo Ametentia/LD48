@@ -1,6 +1,9 @@
 #include "Ludum_Assets.cpp"
 #include "Ludum_Renderer.cpp"
 
+#include "Ludum_World.cpp"
+#include "Ludum_Entity.cpp"
+
 #include "Ludum_Mode_Play.cpp"
 #include "Ludum_Mode_Splash.cpp"
 
@@ -22,8 +25,8 @@ internal void LudumUpdateRender(Game_Context *context, Game_Input *input, Draw_C
     state->temp_handle = BeginTemp(state->temp);
 
     if (state->mode == GameMode_None) {
-        //ModePlay(state);
-        ModeSplash(state);
+        ModePlay(state);
+        //ModeSplash(state);
     }
 
     switch (state->mode) {
