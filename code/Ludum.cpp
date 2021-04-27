@@ -5,6 +5,7 @@
 #include "Ludum_Entity.cpp"
 
 #include "Ludum_Mode_Play.cpp"
+#include "Ludum_Mode_Menu.cpp"
 #include "Ludum_Mode_Splash.cpp"
 
 internal void LudumUpdateRender(Game_Context *context, Game_Input *input, Draw_Command_Buffer *draw_buffer) {
@@ -25,8 +26,7 @@ internal void LudumUpdateRender(Game_Context *context, Game_Input *input, Draw_C
     state->temp_handle = BeginTemp(state->temp);
 
     if (state->mode == GameMode_None) {
-        ModePlay(state);
-        //ModeSplash(state);
+        ModeSplash(state);
     }
 
     switch (state->mode) {
@@ -38,6 +38,9 @@ internal void LudumUpdateRender(Game_Context *context, Game_Input *input, Draw_C
             UpdateRenderModeSplash(state, input, draw_buffer);
         }
         break;
+        case GameMode_Menu: {
+            UpdateRenderModeMenu(state, input, draw_buffer);
+        }
     }
 }
 

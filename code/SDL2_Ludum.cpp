@@ -267,10 +267,17 @@ internal void SDL2HandleInput(Game_Input *current_input, Game_Input *prev_input)
         left_stick.x = SDL2GetControllerAxisValue(handle, SDL_CONTROLLER_AXIS_LEFTX, 0.05f);
         left_stick.y = SDL2GetControllerAxisValue(handle, SDL_CONTROLLER_AXIS_LEFTY, 0.05f);
 
-        SDL2HandleButtonPress(&current->up,    left_stick.y < -0.5f);
-        SDL2HandleButtonPress(&current->down,  left_stick.y >  0.5f);
-        SDL2HandleButtonPress(&current->left,  left_stick.x < -0.5f);
-        SDL2HandleButtonPress(&current->right, left_stick.x >  0.5f);
+        pressed = SDL_GameControllerGetButton(handle, SDL_CONTROLLER_BUTTON_DPAD_UP) != 0;
+        SDL2HandleButtonPress(&current->up, (left_stick.y < -0.5f) || pressed);
+
+        pressed = SDL_GameControllerGetButton(handle, SDL_CONTROLLER_BUTTON_DPAD_DOWN) != 0;
+        SDL2HandleButtonPress(&current->down, (left_stick.y > 0.5f) || pressed);
+
+        pressed = SDL_GameControllerGetButton(handle, SDL_CONTROLLER_BUTTON_DPAD_LEFT) != 0;
+        SDL2HandleButtonPress(&current->left, (left_stick.x < -0.5f) || pressed);
+
+        pressed = SDL_GameControllerGetButton(handle, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) != 0;
+        SDL2HandleButtonPress(&current->right, (left_stick.x > 0.5f) || pressed);
 
         pressed = SDL_GameControllerGetButton(handle, SDL_CONTROLLER_BUTTON_A) != 0;
         SDL2HandleButtonPress(&current->action, pressed);
