@@ -14,13 +14,12 @@ enum Tile_Flag {
     TileFlag_BottomEdge = 0x100,
     TileFlag_EdgeMask   = TileFlag_LeftEdge | TileFlag_RightEdge | TileFlag_BottomEdge | TileFlag_TopEdge,
 
-    TileFlag_Amulet = 0x100,
+    TileFlag_ShopEmpty = 0x100,
     TileFlag_StringReinforcement = 0x200,
     TileFlag_Repellant = 0x400,
     TileFlag_ExtraString = 0x800,
-    TileFlag_ShopItem = TileFlag_ExtraString|TileFlag_Amulet|TileFlag_StringReinforcement|TileFlag_Repellant,
-    TileFlag_HasHermes = 0x1000,
-    TileFlag_ShopEmpty = 0x2000
+    TileFlag_ShopItem = TileFlag_ExtraString|TileFlag_StringReinforcement|TileFlag_Repellant,
+    TileFlag_HasHermes = 0x1000
 };
 
 enum Room_Flag {
@@ -29,12 +28,23 @@ enum Room_Flag {
     RoomFlag_IsShop  = 0x4
 };
 
+enum Item_Flag{
+    ItemFlag_StringReinforcement = 0x200,
+    ItemFlag_Repellant = 0x400,
+    ItemFlag_ExtraString = 0x800
+};
+
 struct Tile {
     u32 flags;
 
     u32 x, y;
     Image_Handle image;
     Image_Handle shop_sprite;
+};
+
+struct Hermes{
+    Animation anim;
+    v2 pos;
 };
 
 struct Room {
@@ -47,8 +57,7 @@ struct Room {
     Tile *tiles;
 
     Room *connections[4];
-    
-    Animation hermes;
+    Hermes hermes;
 };
 
 struct Enemy;

@@ -55,6 +55,10 @@ internal void ModePlay(Game_State *state) {
     player->last_pos = player->grid_pos;
     player->money    = 100;
     player->carrying = false;
+    player->item = {
+        0,
+        0
+    };
 
     player->animation = &world->player_animations[0];
 
@@ -176,27 +180,33 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
     if (JustPressed(controller->interact)) {
         Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
-        Tile *above_player = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y+1);
+        
         umm cost = 10;
         if(player_tile->flags&TileFlag_ShopItem){
             if(player->money >= cost && !player->carrying){
                 player->carrying = true;
                 player->item = {
                     10,
-                    0.2f
+                    0.2f,
+                    player_tile->flags
                 };
-                player_tile->flags = 0x2000;
+                player_tile->flags = TileFlag_ShopEmpty;
             }
         }
     }
     if (JustPressed(controller->action)) {
+        Tile *above_player = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y+1);
         if(above_player->flags&TileFlag_HasHermes && player->carrying){
-            player->money -= cost;
+            player->money -= player->item.cost;
             player->item = {
+                0,
                 0,
                 0
             };
             player->carrying = false;
+            if(player->item.flags&ItemFlag_ExtraString){
+                // player->strings
+            }
         }
     }
 
@@ -209,14 +219,17 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     //
     DrawRoom(batch, world, player->room);
 
-    // if(player->carrying && GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y)->flags&TileFlag_ShopItem|TileFlag_ShopEmpty){
-    //     DrawQuad(batch, )
-    // }
+    if(player->carrying){
+        Tile *tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
+        if(tile->flags&TileFlag_ShopItem|TileFlag_ShopEmpty){
+            DrawQuad(batch, GetImageByName(&state->assets, "pay"), V3(player->room->hermes.pos.x,player->room->hermes.pos.y+0.5,0),V2(1,0.5));
+        }
+    }
 
-    UpdateAnimation(&play->enemy_animation, dt);
+    UpdateAnimation(&world->enemy_animation, dt);
     UpdateAnimation(player->animation, dt);
     if(true){//player->room->flags&RoomFlag_IsShop){
-        UpdateAnimation(&player->room->hermes, dt);
+        UpdateAnimation(&player->room->hermes.anim, dt);
     }
     DrawAnimation(batch, player->animation, V3(player_world_pos), world->tile_size);
 

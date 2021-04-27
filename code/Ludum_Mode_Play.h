@@ -29,6 +29,7 @@ struct Enemy {
 struct Item{
     umm cost;
     f32 steal_chance;
+    u32 flags;
 };
 
 struct Player {

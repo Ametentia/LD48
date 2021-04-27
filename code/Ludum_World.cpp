@@ -119,12 +119,10 @@ internal void PlaceExitStructure(Asset_Manager *assets, World *world, Room *room
 internal void GenerateShop(World *world, Asset_Manager *assets, Room *room){
     Tile *tiles_arr = AllocArray(world->alloc, Tile, 6);
     Image_Handle bg_tile = GetImageByName(assets, "shop_tile");
-    Image_Handle amulet = GetImageByName(assets, "apollo_amulet");
     Image_Handle reinforcement = GetImageByName(assets, "string_reinforcement");
     Image_Handle extra_string = GetImageByName(assets, "extra_string");
     Image_Handle repellant = GetImageByName(assets, "repellant");
-    tiles_arr[0] = { 0x2000, 1, 1, bg_tile, {0}};
-    tiles_arr[1] = { 0x100, 1, 1, bg_tile, amulet };
+    tiles_arr[0] = { 0x100, 1, 1, bg_tile, {0}};
     tiles_arr[2] = { 0x200, 1, 1, bg_tile, reinforcement };
     tiles_arr[3] = { 0x400, 1, 1, bg_tile, repellant };
     tiles_arr[4] = { 0x800, 1, 1, bg_tile, extra_string };
@@ -133,7 +131,6 @@ internal void GenerateShop(World *world, Asset_Manager *assets, Room *room){
     Random rng = RandomSeed(time(0));
     v2 shop_tiles_grid = V2(3,3);
     umm items = 0;
-    bool hermes = false;
     for(umm i = 0; i < shop_tiles_grid.x; i++){
         for(umm j = 0; j < shop_tiles_grid.y; j++){
             umm index = i*(umm)shop_tiles_grid.x+j;
@@ -272,7 +269,7 @@ internal f32 GetDoorRotation(Tile *tile) {
 
 internal void GenerateRoomLayout(World *world, Asset_Manager *assets, Room *room) {
     room->tiles = AllocArray(world->alloc, Tile, room->dim.x * room->dim.y);
-    room->hermes = CreateAnimation(GetImageByName(assets, "hermes_overworld"),  2, 1, 0.23);
+    room->hermes.anim = CreateAnimation(GetImageByName(assets, "hermes_overworld"),  2, 1, 0.23);
     Image_Handle images[] = {
         GetImageByName(assets, "tile_00"),
         GetImageByName(assets, "tile_01"),
@@ -603,7 +600,8 @@ internal void DrawRoom(Render_Batch *batch, World *world, Room *room) {
                     }
                 }
                 if(tile->flags& TileFlag_HasHermes){
-                    DrawAnimation(batch, &room->hermes, V3(tile_pos), V2(0.6,0.6));
+                    DrawAnimation(batch, &room->hermes.anim, V3(tile_pos), V2(0.6,0.6));
+                    room->hermes.pos = tile_pos;
                 }
             }
         }
