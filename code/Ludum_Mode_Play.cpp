@@ -133,6 +133,13 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
             player_tile->flags &= ~TileFlag_HasEnemy;
             play->battle->boss = 0;
 
+            for (u32 it = 0; it < world->enemy_count; ++it) {
+                Enemy *enemy = &world->enemies[it];
+                if (enemy->room != player->room) { continue; }
+
+                if (IsEqual(enemy->grid_pos, player->grid_pos)) { enemy->alive = false; }
+            }
+
             play->level_state = LevelState_TransitionBattle;
         }
         else if (player_tile->flags & TileFlag_HasBoss && world->boss_alive) {
@@ -147,12 +154,15 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
             play->music->volume = 0;
             play->music->flags = 0;
             player_tile->flags &= ~TileFlag_HasEnemy;
+            player_tile->flags &= ~TileFlag_HasBoss;
             play->battle->boss = 0;
 
             play->battle->boss = 1;
             if (world->layer_number == 4) {
                 play->battle->final_boss = 1;
             }
+
+            world->boss_alive = false;
             play->level_state = LevelState_TransitionBattle;
         }
         else {
