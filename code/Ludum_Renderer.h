@@ -11,7 +11,7 @@ struct Renderer_Context;
 typedef RENDERER_INITIALISE(Renderer_Initialise);
 typedef RENDERER_SHUTDOWN(Renderer_Shutdown);
 
-#define RENDERER_BEGIN_FRAME(name) Draw_Command_Buffer *name(Renderer_Context *renderer, v2u render_size)
+#define RENDERER_BEGIN_FRAME(name) Draw_Command_Buffer *name(Renderer_Context *renderer, rect2 render_region)
 #define RENDERER_END_FRAME(name) void name(Renderer_Context *renderer, Draw_Command_Buffer *buffer)
 
 typedef RENDERER_BEGIN_FRAME(Renderer_Begin_Frame);

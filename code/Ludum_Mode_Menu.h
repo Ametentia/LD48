@@ -19,4 +19,6 @@ struct Mode_Menu {
     Ui_Context ui;
 };
 
+internal void ModeMenu(Game_State *state);
+
 #endif  // LUDUM_MODE_MENU_H_

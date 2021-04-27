@@ -246,17 +246,21 @@ internal void OpenGLTransferTextures(OpenGL_State *gl, Texture_Transfer_Buffer *
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-internal Draw_Command_Buffer *OpenGLBeginFrame(OpenGL_State *gl, v2u render_size) {
+internal Draw_Command_Buffer *OpenGLBeginFrame(OpenGL_State *gl, rect2 render_region) {
     Draw_Command_Buffer *result = &gl->command_buffer;
 
     result->base = gl->command_buffer_base;
     result->size = gl->command_buffer_size;
     result->used = 0;
 
+    v2 render_size;
+    render_size.x = render_region.max.x - render_region.min.x;
+    render_size.y = render_region.max.y - render_region.min.y;
+
     // @Note: May differ in the future
     //
-    result->setup.window_size = render_size;
-    result->setup.render_size = render_size;
+    result->setup.window_size = { cast(u32) render_size.x, cast(u32) render_size.y };
+    result->setup.render_size = result->setup.window_size;
 
     result->vertices         = gl->immediate_vertices;
     result->max_vertex_count = gl->max_immediate_vertex_count;
@@ -266,8 +270,8 @@ internal Draw_Command_Buffer *OpenGLBeginFrame(OpenGL_State *gl, v2u render_size
     result->max_index_count  = gl->max_immediate_index_count;
     result->index_count      = 0;
 
-    glScissor(0, 0, render_size.w, render_size.h);
-    glViewport(0, 0, render_size.w, render_size.h);
+    glScissor(render_region.min.x, render_region.min.y, render_size.w, render_size.h);
+    glViewport(render_region.min.x, render_region.min.y, render_size.w, render_size.h);
 
     return result;
 }

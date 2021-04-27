@@ -89,6 +89,25 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     Game_Controller *controller = GameGetController(input, 1);
     if (!controller->connected) { controller = GameGetController(input, 0); }
 
+
+    if (play->end_screen) {
+        SetCameraTransform(batch, 0, V3(1, 0, 0), V3(0, 1, 0), V3(0, 0, 1), V3(0, 0, 3));
+
+        rect3 camera_bounds = GetCameraBounds(&batch->game_tx);
+        rect2 screen_bounds = Rect2(camera_bounds);
+
+        Image_Handle background = GetImageByName(&state->assets, "end_screen");
+        DrawQuad(batch, background, V2(0, 0), screen_bounds.max - screen_bounds.min, 0, V4(1, 1, 1, 1));
+
+        for (u32 it = 0; it < ArrayCount(controller->buttons); ++it) {
+            if (IsPressed(controller->buttons[it])) {
+                ModeMenu(state);
+            }
+        }
+
+        return;
+    }
+
     f32 dt = input->delta_time;
 
     Player *player = &play->player;
@@ -140,7 +159,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
             Tile *last_tile = GetTileFromRoom(player->room, player->last_pos.x, player->last_pos.y);
             if (last_tile->flags & TileFlag_IsExit) {
                 if (world->layer_number == 4) {
-                    input->requested_quit = true;
+                    play->end_screen = true;
                 }
                 else {
                     if (play->level_state == LevelState_Next) {

@@ -60,6 +60,7 @@ struct Mode_Play {
 
     f32 transition_delay;
 
+    b32 end_screen;
 
     // @Todo(James): Reuse this for overview map
     //
