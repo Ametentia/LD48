@@ -17,6 +17,7 @@ internal void ModePlay(Game_State *state) {
     World *world = &play->world;
 
     Player *player = &play->player;
+    play->health = 4;
 
     u32 min_enemy_count = world->room_count + (world->room_count / 2);
     u32 max_enemy_count = 4 * world->room_count;
@@ -113,10 +114,13 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
             play->battle     = AllocStruct(play->alloc, Mode_Battle);
             play->in_battle  = 1;
 
+            play->battle->final_boss = 0;
             ModeBattle(state, play->battle, &play->battle_mem);
+            play->battle->health = &play->health;
             play->music->volume = 0;
             play->music->flags = 0;
             player_tile->flags &= ~TileFlag_HasEnemy;
+            play->battle->boss = 0;
 
             for (u32 it = 0; it < play->enemy_count; ++it) {
                 Enemy *enemy = &play->enemies[it];

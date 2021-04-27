@@ -19,21 +19,23 @@ struct Call {
     s8 hits;
     const char *call_asset_name;
     const char *note_asset_names[4];
+    const char *note_enemy_names[4];
 };
 
 struct CallSet {
-    Call calls[5];
+    Call calls[10];
     u32 current_call;
     u32 hits;
     u32 total_notes;
     u32 attempt_count;
+    u8 song;
+    u32 call_count;
 };
 
 struct Mode_Battle {
     Memory_Allocator *alloc;
     Random random;
     Animation transition;
-    u8 song;
     f32 bpm;
     f32 intro_wait;
     f32 timer;
@@ -41,7 +43,6 @@ struct Mode_Battle {
     u64 beat_wait;
 
     u32 points;
-    u8 health;
     u8 done;
     v2 metronome;
     f32 met_angle;
@@ -53,5 +54,9 @@ struct Mode_Battle {
     CallSet calls;
     Image_Handle *beat_textures;
     Game_Button control_map[4];
+    s32 *health;
+    u8 boss;
+    u8 final_boss;
+    u8 enemy;
 };
 #endif  // LUDUM_MODE_BATTLE_H_

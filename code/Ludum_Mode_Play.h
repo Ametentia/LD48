@@ -53,7 +53,7 @@ struct Mode_Play {
     World world;
 
     Player player;
-
+    s32 health;
 
     Animation enemy_animation;
 
