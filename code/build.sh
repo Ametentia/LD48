@@ -1,13 +1,13 @@
 #!/bin/bash
 
-if [[ ! -d "build" ]];
+if [[ ! -d "../build" ]];
 then
-    mkdir "build"
+    mkdir "../build"
 fi
 
-pushd "build" 2> /dev/null > /dev/null
+pushd "../build" 2> /dev/null > /dev/null
 
-COMPILER_FLAGS="-O0 -g -ggdb -DLUDUM_DEBUG=1"
+COMPILER_FLAGS="-O0 -g -ggdb -std=c++2a -DLUDUM_DEBUG=1"
 LINKER_FLAGS="-lSDL2 -ldl"
 
 # OpenGL renderer .so

@@ -1,236 +1,297 @@
 #include "Ludum_Mode_Battle_Calls.cpp"
-internal f32 BpmToBps(f32 bpm) {
-    return bpm/60;
-}
 
-internal void ModeBattle(Game_State *state, Mode_Battle *battle, Temporary_Memory *alloc) {
-    battle->alloc = alloc->alloc;
-    battle->random = RandomSeed(time(NULL));
-    battle->calls = GetCall(&battle->random, battle->final_boss, battle->boss);
-    battle->points = 0;
-    battle->metronome = V2(-2.8, -0.2);
-    battle->met_angle = 180;
-    battle->met_flip_range = V2(-0.3, 0);
-    battle->guide_height = 2;
-    battle->dance_angle = 1;
-    u8 bpms[2] = {
-        87, 94
-    };
-    battle->bpm = bpms[battle->calls.song];
-    battle->intro_wait = 2;
-    battle->wave = -1;
-    battle->beat_wait = 8;
-    battle->enemy = NextRandom(&battle->random) % 4;
-    f32 speed = 6.2;
-    if(battle->final_boss){
-        speed = 5.6;
-    }
-    battle->met_speed = speed/8*BpmToBps(battle->bpm);
-    char intros[2][8] = {
-        "intro_2", "intro_p"
-    };
-    Sound_Handle intro = GetSoundByName(&state->assets, intros[battle->calls.song]);
+internal Mode_Battle *ModeBattle(Game_State *state, u32 layer_index, Enemy_Type type) {
+    Mode_Battle *result = AllocStruct(&state->mode_alloc, Mode_Battle);
+
+    result->assets = &state->assets;
+    result->alloc  = &state->mode_alloc;
+    result->random = RandomSeed(time(0) ^ 8954898774);
+
+    Image_Handle transition = GetImageByName(&state->assets, "transition_spritesheet");
+    result->transition      = CreateAnimation(transition, 5, 2, 0.23);
+
+    result->type = type;
+
+    result->intro_wait =  2;
+    result->beat_wait  =  8;
+    result->wave       = -1;
+
+    // @Note(James): I assumed 'battle->calls.song' was 0 as it was set to 0 and then never changed so
+    // I have changed it so the values that would've been if 'song' was always 0
+    // :Song
+    //
+
+    // Get or generate call set
+    //
+    result->calls = GetCallSet(result, &result->random, type);
+
+    // Guide line setup
+    //
+    result->bpm = (type == EnemyType_FinalBoss) ? 94   : 87;
+    f32 speed   = (type == EnemyType_FinalBoss) ? 5.6f : 6.2f;
+
+    result->metronome      = V2(-2.8, -0.2);
+    result->met_angle      = 180;
+    result->met_flip_range = V2(-0.3, 0);
+    result->guide_height   = 2;
+    result->met_speed      = speed / 8.0f * (result->bpm / 60.0f);
+
+    Sound_Handle intro = GetSoundByName(&state->assets, (type == EnemyType_FinalBoss) ? "intro_p" : "intro_2");
     PlaySound(state, intro, 0.3, 0);
-    battle->transition = CreateAnimation(GetImageByName(&state->assets, "transition_spritesheet"), 5, 2, 0.23);
 
-    
-    battle->beat_textures = AllocArray(battle->alloc, Image_Handle, 4);
-    battle->beat_textures[0] = GetImageByName(&state->assets, "up");
-    battle->beat_textures[1] = GetImageByName(&state->assets, "down");
-    battle->beat_textures[2] = GetImageByName(&state->assets, "left");
-    battle->beat_textures[3] = GetImageByName(&state->assets, "right");
+    result->beat_textures[0] = GetImageByName(&state->assets, "up");
+    result->beat_textures[1] = GetImageByName(&state->assets, "down");
+    result->beat_textures[2] = GetImageByName(&state->assets, "left");
+    result->beat_textures[3] = GetImageByName(&state->assets, "right");
+
+    const char *enemy_texture_names[] = {
+        "cyclops", "harpie", "gorgon", "skeleton",
+        "hydra", "phoenix_01", "cronus", "hades_sprite"
+    };
+
+    const char *enemy_bar_texture_names[] = {
+        "cyclops_bar", "harpy_bar", "gorgon_bar", "skeleton_bar",
+        "hydra_bar", "phoenix_admiration_bar", "cronus_bar", "hades_bar"
+    };
+
+    Assert(ArrayCount(enemy_texture_names) == ArrayCount(enemy_bar_texture_names));
+
+    u32 enemy_index = 0;
+    if (type == EnemyType_Standard) {
+        enemy_index = RandomChoice(&result->random, 4);
+    }
+    else {
+        enemy_index = layer_index + 3;
+    }
+
+    result->enemy_texture = GetImageByName(&state->assets, enemy_texture_names[enemy_index]);
+    result->enemy_hud     = GetImageByName(&state->assets, enemy_bar_texture_names[enemy_index]);
+
+    return result;
 }
 
 internal f32 BeatCount(f32 timer, f32 bpm) {
-    return timer*BpmToBps(bpm);
+    f32 result = timer * (bpm / 60.0f);
+    return result;
 }
 
-internal s8 beatCheck(f32 bpm, Call *call, f32 timer){
-    for(s8 i = 0; i < call->beat_count; i++) {
+internal s32 BeatCheck(f32 bpm, Call *call, f32 timer){
+    s32 result = -1;
+
+    for (s32 i = 0; i < call->beat_count; i++) {
         f32 acc = BeatCount(timer, bpm) - call->beats[i];
-        if(acc < 0.1 && acc >= 0) {
-            return i;
+        if (acc < 0.1 && acc >= 0) {
+            result = i;
+            break;
         }
     }
-    return -1;
+
+    return result;
 }
 
-internal s8 playerCheck(f32 bpm, Call *call, f32 timer){
-    for(s8 i = 0; i < call->beat_count; i++) {
-        f32 acc = BeatCount(timer, bpm) - (call->beats[i])-4.0;
-        if(acc < 0.300 && acc >= -0.300 && call->visable) {
-            return i+call->beat_count;
+internal s32 PlayerCheck(f32 bpm, Call *call, f32 timer){
+    s32 result = -1;
+
+    for (s32 i = 0; i < call->beat_count; i++) {
+        f32 acc = BeatCount(timer, bpm) - (call->beats[i]) - 4.0;
+        if (acc < 0.300 && acc >= -0.300) {
+            result = i + call->beat_count;
         }
     }
-    return -1;
+
+    return result;
 }
 
-internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input, Draw_Command_Buffer *draw_buffer, Mode_Battle *battle) {
-    Render_Batch _batch = CreateRenderBatch(draw_buffer, &state->assets,
-            V4(0.0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
+internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
+        Draw_Command_Buffer *draw_buffer, Mode_Battle *battle)
+{
+    v4 clear_colour = V4(0.0, 41.0 / 255.0, 45.0 / 255.0, 1.0);
+    Render_Batch _batch = CreateRenderBatch(draw_buffer, &state->assets, clear_colour);
     Render_Batch *batch = &_batch;
+
     SetCameraTransform(batch, 0, V3(1, 0, 0), V3(0, 1, 0), V3(0, 0, 1), V3(0, 0, 6));
 
     Game_Controller *controller = GameGetController(input, 1);
     if (!controller->connected) {
         controller = GameGetController(input, 0);
     }
+
     f32 dt = input->delta_time;
-    battle->dance_timer += dt;
     battle->timer += dt;
-    if(battle->dance_timer > BpmToBps(battle->bpm)) {
-        battle->dance_timer = 0;
-        battle->dance_angle *= -1;
-    }
-    if(battle->metronome.x > battle->met_flip_range.x && battle->metronome.x < battle->met_flip_range.y) {
+
+    if (battle->metronome.x > battle->met_flip_range.x && battle->metronome.x < battle->met_flip_range.y) {
         f32 pos = battle->metronome.x - battle->met_flip_range.x;
-        f32 alpha = pos/(battle->met_flip_range.y - battle->met_flip_range.x);
-        battle->met_angle = Lerp(0, -180, alpha);
-        battle->guide_height = Lerp(-2.3, 2, alpha);
+
+        f32 alpha = pos / (battle->met_flip_range.y - battle->met_flip_range.x);
+        battle->met_angle    = Lerp( 0.0f, -180.0f, alpha);
+        battle->guide_height = Lerp(-2.3f,  2.0f,   alpha);
     }
-    else if(battle->metronome.x > battle->met_flip_range.y) {
+    else if (battle->metronome.x > battle->met_flip_range.y) {
         battle->met_angle = 0;
     }
-    if(BeatCount(battle->timer, battle->bpm) >= battle->beat_wait) {
-        battle->timer = 0;
-        battle->wave += 1;
-        battle->beat_wait = 8;
-        battle->metronome.x = -2.8;
-        battle->met_angle = 180;
-        battle->guide_height = 2;
-        Call call = battle->calls.calls[battle->calls.current_call];
-        if(battle->wave>0) {
-            if(call.hits >= call.successThreshold ) {
-                battle->calls.current_call += 1;
-                battle->calls.attempt_count += call.beat_count;
-                u8 all_notes = battle->calls.hits >= battle->calls.total_notes;
-                u8 all_calls = battle->calls.current_call > battle->calls.call_count;
-                if(all_notes || all_calls){
-                    char exits[3][9] = {
-                        "finish_2", "finish_p"
-                    };
-                    Sound_Handle finale = GetSoundByName(&state->assets, exits[battle->calls.song]);
-                    PlaySound(state, finale, 0.3, 0);
 
-                    battle->done = 1;
+    Call *call = &battle->calls.calls[battle->calls.current_call];
+
+    if (BeatCount(battle->timer, battle->bpm) >= battle->beat_wait) {
+        battle->timer        = 0;
+        battle->beat_wait    = 8;
+
+        battle->metronome.x  = -2.8;
+        battle->guide_height = 2;
+        battle->met_angle    = 180;
+
+        battle->wave        += 1;
+
+        if(battle->wave > 0) {
+            if (call->hits >= call->success_threshold) {
+                battle->calls.current_call  += 1;
+                battle->calls.attempt_count += call->beat_count;
+
+                b32 all_notes = battle->calls.total_hits >= battle->calls.total_notes;
+                b32 all_calls = battle->calls.current_call >= battle->calls.call_count;
+                if (all_notes || all_calls) {
+                    const char *name = (battle->type == EnemyType_FinalBoss) ? "finish_p" : "finish_2";
+                    PlaySound(state, GetSoundByName(&state->assets, name), 0.3, 0);
+
+                    battle->done = true;
                     return;
                 }
+
+                call = &battle->calls.calls[battle->calls.current_call];
             } else {
-                *battle->health -= 1;
+                s32 health = *battle->health;
+                if (health > 0) { health -= 1; }
+
+                if (health == 0) {
+                    battle->done = true;
+                }
+
+                *battle->health = health;
             }
         }
-        call = battle->calls.calls[battle->calls.current_call];
-        battle->calls.calls[battle->calls.current_call].hits = 0;
-        battle->calls.calls[battle->calls.current_call].beat_shown = 0;
-        Sound_Handle wave = GetSoundByName(&state->assets, call.call_asset_name);
-        PlaySound(state, wave, 0.3, 0);
-        for(u8 i = 0; i < 20; i++) { 
-            battle->calls.calls[battle->calls.current_call].visable[i] = 0;
-        }
-    }
-    if(battle->wave>-1) {
-        battle->metronome.x += battle->met_speed*dt; 
-    }
-    f32 bar_progress = Min(cast(f32) battle->calls.hits/cast(f32)Max(battle->calls.total_notes, battle->calls.attempt_count), 1);
 
-    const char *enemies[8] = {
-        "cyclops", 
-        "harpie", 
-        "gorgon", 
-        "skeleton",
-        "hydra",
-        "phoenix_01",
-        "cronus",
-        "hades"
-    };
-    const char *bars[8] = {
-        "cyclops_bar", 
-        "harpy_bar", 
-        "gorgon_bar", 
-        "skeleton_bar",
-        "hydra_bar",
-        "phoenix_admiration_bar",
-        "cronus_bar",
-        "hades_bar"
-    };
+        call->hits        = 0;
+        call->beats_shown = 0;
+        ZeroSize(call->visible, sizeof(call->visible));
 
-    Image_Handle harp = GetImageByName(&state->assets, "player_strings");
-    Image_Handle enemyBox = GetImageByName(&state->assets, "enemy_strings");
-    Image_Handle metronome = GetImageByName(&state->assets, "arrow");
-    Image_Handle sprite = GetImageByName(&state->assets, "player_backsprite");
-    Image_Handle spotlight = GetImageByName(&state->assets, "spotlight");
-    Image_Handle skele = GetImageByName(&state->assets, enemies[battle->enemy]);
-    Image_Handle bar = GetImageByName(&state->assets, bars[battle->enemy]);
-    Image_Handle bar_fill = GetImageByName(&state->assets, "bar_fill");
+        PlaySound(state, call->call_handle, 0.3, 0);
+    }
+
+    if (battle->wave > -1) { battle->metronome.x += battle->met_speed * dt; }
+
+    // @Todo: We won't need to do this if we just pre-lookup the image handle for the enemy and
+    // bar we are currently fighting
+    // :SoundHandle
+    //
+
+    // Basic textures
+    //
     Image_Handle string_hurt = GetImageByName(&state->assets, "cross");
-    DrawQuad(batch, spotlight, V2(1.8, 0.3), 2.5, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, sprite, V2(-2, -1.7), 2.5, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, harp, V2(1.6, -1.5), 4, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, skele, V2(1.8, 1.1), 2.6 /*2.125*/, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, enemyBox, V2(-1.8, 1.1), 3.3, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, bar_fill, V2(Lerp(-1.6, -5.4, bar_progress), 2.35), 4.1, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, bar, V2(-1.6, 2.35), 4, 0, V4(1, 1, 1, 1));
-    DrawQuad(batch, {0}, V2(-4.1, 2.36), V2(1,1.3), 0, V4(0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
-    DrawQuad(batch, {0}, V2(-3.83, 2.5), V2(0.5,0.05), 0, V4(0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
-    for(u8 i = 0; i < 4-*battle->health; i++) {
-        f32 height = -1.1 - 0.29*i;
-        DrawQuad(batch, string_hurt, V2(0, height), 0.2, 0, V4(1,1,1,1));
+    Image_Handle harp        = GetImageByName(&state->assets, "player_strings");
+    Image_Handle sprite      = GetImageByName(&state->assets, "player_backsprite");
+
+    Image_Handle spotlight   = GetImageByName(&state->assets, "spotlight");
+    Image_Handle enemy_box   = GetImageByName(&state->assets, "enemy_strings");
+
+    Image_Handle metronome   = GetImageByName(&state->assets, "arrow");
+    Image_Handle bar_fill    = GetImageByName(&state->assets, "bar_fill");
+
+    // Enemy specific
+    Image_Handle enemy     = battle->enemy_texture;
+    Image_Handle enemy_bar = battle->enemy_hud;
+
+    f32 progress_hits  = cast(f32) battle->calls.total_hits;
+    f32 progress_denom = cast(f32) Max(battle->calls.total_notes, battle->calls.attempt_count);
+    f32 bar_progress   = Min(progress_hits / progress_denom, 1);
+    v2 bar_pos         = V2(Lerp(-1.6, -5.4, bar_progress), 2.35);
+
+    DrawQuad(batch, spotlight, V2( 1.8,  0.3), 2.5, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, sprite,    V2(-2.0, -1.7), 2.5, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, harp,      V2( 1.6, -1.5), 4.0, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, enemy,     V2( 1.8,  1.1), 2.6, 0, V4(1, 1, 1, 1)); // scale = 2.125?
+    DrawQuad(batch, enemy_box, V2(-1.8,  1.1), 3.3, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, bar_fill,  bar_pos,        4.1, 0, V4(1, 1, 1, 1));
+    DrawQuad(batch, enemy_bar, V2(-1.6, 2.35), 4.0, 0, V4(1, 1, 1, 1));
+
+    DrawQuad(batch, { 0 },     V2(-4.1, 2.36), V2(1.0, 1.30), 0, V4(0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
+    DrawQuad(batch, { 0 },     V2(-3.83, 2.5), V2(0.5, 0.05), 0, V4(0, 41.0 / 255.0, 45.0 / 255.0, 1.0));
+
+    u32 health = *battle->health;
+    for (u32 i = 0; i < 4 - health; i++) {
+        f32 height = -1.1 - 0.29 * i;
+        DrawQuad(batch, string_hurt, V2(0, height), 0.2, 0, V4(1, 1, 1, 1));
     }
-    v2 lineHeight = V2(battle->metronome.x, battle->metronome.y+battle->guide_height);
-    DrawLine(batch, battle->metronome, lineHeight, V4(1,1,1,1));
+
+    v2 lineHeight = V2(battle->metronome.x, battle->metronome.y + battle->guide_height);
+    DrawLine(batch, battle->metronome, lineHeight, V4(1, 1, 1, 1));
     DrawQuad(batch, metronome, battle->metronome, 0.4, Radians(battle->met_angle), V4(1, 1, 1, 1));
-    CallSet *callSet = &(battle->calls);
-    s8 cpu_beat = beatCheck(battle->bpm, &(callSet->calls[callSet->current_call]), battle->timer);
-    s8 player_beat = playerCheck(battle->bpm, &(callSet->calls[callSet->current_call]), battle->timer);
-    if(cpu_beat!=-1 && battle->wave > -1) {
-        if(cpu_beat+1 > callSet->calls[callSet->current_call].beat_shown){
-            callSet->calls[callSet->current_call].beat_shown = cpu_beat+1;
-            Button button = callSet->calls[callSet->current_call].beatButtons[cpu_beat];
-            callSet->calls[callSet->current_call].pos[cpu_beat] = V2(battle->metronome.x, 1.4 - 0.23 * button);
-            if(!battle->final_boss) {
-                Sound_Handle intro = GetSoundByName(&state->assets, callSet->calls[callSet->current_call].note_enemy_names[button]);
-                PlaySound(state, intro, 0.3, 0);
+
+    s32 cpu_beat    =   BeatCheck(battle->bpm, call, battle->timer);
+    s32 player_beat = PlayerCheck(battle->bpm, call, battle->timer);
+
+    if (cpu_beat != -1 && battle->wave > -1) {
+        if((cpu_beat + 1) > call->beats_shown){
+            call->beats_shown = cpu_beat + 1;
+            Button button    = call->beat_buttons[cpu_beat];
+
+            call->pos[cpu_beat] = V2(battle->metronome.x, 1.4 - (0.23 * cast(f32) button));
+
+            if (battle->type != EnemyType_FinalBoss) {
+                PlaySound(state, call->enemy_note_handles[button], 0.3, 0);
             }
         }
     }
-    u8 note_hit = 0;
-    if(player_beat!=-1 && battle->wave > -1) {
-        s8 beat_count = callSet->calls[callSet->current_call].beat_count;
-        if(player_beat+1 > callSet->calls[callSet->current_call].beat_shown){
-            callSet->calls[callSet->current_call].beat_shown = player_beat+1;
-            Button button = callSet->calls[callSet->current_call].beatButtons[player_beat%beat_count];
-        }
-        Button button = callSet->calls[callSet->current_call].beatButtons[player_beat%beat_count];
-        Game_Button controller_button = controller->buttons[button];
-        if(JustPressed(controller_button) && !callSet->calls[callSet->current_call].visable[player_beat%beat_count]) {
-            callSet->calls[callSet->current_call].visable[player_beat%beat_count] = 1;
-            callSet->calls[callSet->current_call].hits += 1;
-            callSet->hits += 1;
-            Sound_Handle intro = GetSoundByName(&state->assets, callSet->calls[callSet->current_call].note_asset_names[button]);
-            PlaySound(state, intro, 0.3, 0);
-            note_hit = 1;
-            callSet->calls[callSet->current_call].pos[player_beat] = V2(battle->metronome.x, -1.1 - 0.29*button);
-        }
-    }
-    for(s8 i = 0; i < callSet->calls[callSet->current_call].beat_shown; i++) {
-        s8 beat_count = callSet->calls[callSet->current_call].beat_count;
-        Image_Handle beat = battle->beat_textures[callSet->calls[callSet->current_call].beatButtons[i%beat_count]];
-        if(beat_count > i || callSet->calls[callSet->current_call].visable[i%beat_count]) {
-            DrawQuad(batch, beat, callSet->calls[callSet->current_call].pos[i], 0.4, 0, V4(1, 1, 1, 1));
+
+    b32 note_hit = 0;
+    if (player_beat != -1 && battle->wave > -1) {
+        s32 beat_count = call->beat_count;
+        if ((player_beat + 1) > call->beats_shown) { call->beats_shown = player_beat + 1; }
+
+        u32 beat_index = player_beat % beat_count;
+        b32 visible    = call->visible[beat_index];
+        Button button  = call->beat_buttons[beat_index];
+
+        if (JustPressed(controller->buttons[button]) && !visible) {
+            call->visible[beat_index] = true;
+            call->hits += 1;
+            battle->calls.total_hits += 1;
+
+            PlaySound(state, call->player_note_handles[button], 0.3, 0);
+
+            call->pos[player_beat] = V2(battle->metronome.x, -1.1 - (0.29 * cast(f32) button));
+
+            note_hit = true;
         }
     }
-    if(!note_hit) {
-        for(u8 i = 0; i < 4; i++) {
-            if(JustPressed(controller->buttons[i])) {
-                char sounds[3][6] = {
-                    "bad_1",
-                    "bad_2",
-                    "bad_3"
+
+    s32 beat_count = call->beat_count;
+    for (u32 i = 0; i < call->beats_shown; i++) {
+        s32 beat_index = i % beat_count;
+
+        Image_Handle beat = battle->beat_textures[call->beat_buttons[beat_index]];
+        if(beat_count > i || call->visible[beat_index]) {
+            DrawQuad(batch, beat, call->pos[i], 0.4, 0, V4(1, 1, 1, 1));
+        }
+    }
+
+    if (!note_hit) {
+        for (u32 i = 0; i < 4; i++) {
+            if (JustPressed(controller->buttons[i])) {
+                Sound_Handle sounds[] = {
+                    GetSoundByName(&state->assets, "bad_1"),
+                    GetSoundByName(&state->assets, "bad_2"),
+                    GetSoundByName(&state->assets, "bad_3")
                 };
-                Sound_Handle intro = GetSoundByName(&state->assets, sounds[NextRandom(&battle->random) % 2]);
-                PlaySound(state, intro, 0.3, 0);
-                s8 hits = battle->calls.calls[battle->calls.current_call].hits;
-                battle->calls.calls[battle->calls.current_call].hits = Max(0, hits);
+
+                u32 sound_choice   = RandomChoice(&battle->random, 3);
+                Sound_Handle sound = sounds[sound_choice];
+                PlaySound(state, sound, 0.3, 0);
+
+                // @Todo: Can hits actually go negative. I didn't think it could so I changed it so an unsigned
+                // integer making the second bit redundant but if it can there it will cause issues
+                //
+                u32 hits   = call->hits;
+                call->hits = Max(0, hits);
             }
         }
     }

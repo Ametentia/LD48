@@ -112,7 +112,7 @@ internal void PlaceExitStructure(Asset_Manager *assets, World *world, Room *room
     world->boss_image = GetBossImageFromLayer(assets, world->layer_number);
     world->boss_alive = true;
 
-    GetTileFromRoom(room, x    , y - 2)->flags |= TileFlag_HasBoss;
+    GetTileFromRoom(room, x,     y - 2)->flags |= TileFlag_HasBoss;
     GetTileFromRoom(room, x + 1, y - 2)->flags |= TileFlag_HasBoss;
 }
 
@@ -128,7 +128,8 @@ internal void GenerateShop(World *world, Asset_Manager *assets, Room *room){
     tiles_arr[4] = { 0x800, 1, 1, bg_tile, extra_string };
     tiles_arr[5] = { 0x1000, 1, 1, bg_tile, {0} };
 
-    Random rng = RandomSeed(time(0));
+    // @Todo: Shop tiles can spawn on the edge of the room
+    //
     v2 shop_tiles_grid = V2(3,3);
     umm items = 0;
     for(umm i = 0; i < shop_tiles_grid.x; i++){
@@ -142,7 +143,7 @@ internal void GenerateShop(World *world, Asset_Manager *assets, Room *room){
                 *tile = tiles_arr[5];
             }
             else if(items < 4){
-                umm rand = RandomBetween(&rng, 0U,4U);
+                umm rand = RandomBetween(&world->rng, 0U, 4U);
                 *tile = tiles_arr[rand];
                 if(rand > 0){
                     items++;
@@ -351,7 +352,7 @@ internal void GenerateRoomLayout(World *world, Asset_Manager *assets, Room *room
 
         PlaceExitStructure(assets, world, room, world->layer_number, x, y);
     }
-    else if(true){//RandomBetween(&world->rng, 0U, 10U) > 7){
+    else if(RandomBetween(&world->rng, 0U, 10U) > 7){
         GenerateShop(world, assets, room);
     }
 }

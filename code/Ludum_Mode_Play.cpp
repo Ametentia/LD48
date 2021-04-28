@@ -19,7 +19,6 @@ internal void ModePlay(Game_State *state) {
     Player *player = &play->player;
     play->health = 4;
 
-
     // Setup walk animations
     //
     world->player_animations[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.25);
@@ -77,19 +76,22 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     World *world   = &play->world;
 
     if (play->in_battle) {
-        UpdateRenderModeBattle(state, input, draw_buffer, play->battle);
-        if (play->battle->done) {
-            EndTemp(play->battle_mem);
-            if(play->battle->boss) {
-                world->boss_alive = 0;
+        Mode_Battle *battle = play->battle;
+        UpdateRenderModeBattle(state, input, draw_buffer, battle);
+
+        if (battle->done) {
+            play->in_battle = false;
+
+            if (battle->type != EnemyType_Standard) {
+                world->boss_alive = false;
             }
-            play->in_battle = 0;
+
             Sound_Handle world_music = GetSoundByName(&state->assets, "overworld");
             play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
 
-            if (play->health <= 0) {
-                play->end_screen = 2;
-            }
+            if (play->health <= 0) { play->end_screen = 2; }
+
+            EndTemp(play->battle_mem);
         }
 
         return;
@@ -119,6 +121,8 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
         for (u32 it = 0; it < ArrayCount(controller->buttons); ++it) {
             if (JustPressed(controller->buttons[it])) {
+                play->music->volume = 0;
+                play->music->flags  = 0;
                 ModeMenu(state);
             }
         }
@@ -130,9 +134,9 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
     Player *player = &play->player;
 
-     if(player->repellant_active){
-        player->repellant_timer-=dt;
-        if(player->repellant_timer <= 0){
+     if (player->repellant_active) {
+        player->repellant_timer -= dt;
+        if (player->repellant_timer <= 0){
            player->repellant_active = false;
         }
     }
@@ -146,52 +150,29 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     {
         Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
         if (player_tile->flags & TileFlag_HasEnemy && !player->repellant_active) {
-            play->battle_mem = BeginTemp(play->alloc);
-            play->battle     = AllocStruct(play->alloc, Mode_Battle);
-            play->in_battle  = 1;
-
-            play->battle->final_boss = 0;
-            play->battle->boss = 0;
-            ModeBattle(state, play->battle, &play->battle_mem);
-            play->battle->health = &play->health;
-            play->music->volume = 0;
-            play->music->flags = 0;
-            player_tile->flags &= ~TileFlag_HasEnemy;
-
-            for (u32 it = 0; it < world->enemy_count; ++it) {
-                Enemy *enemy = &world->enemies[it];
-                if (enemy->room != player->room) { continue; }
-
-                if (IsEqual(enemy->grid_pos, player->grid_pos)) { enemy->alive = false; }
-            }
-
             play->level_state = LevelState_TransitionBattle;
+            ResetAnimation(&play->transition_in);
         }
         else if (player_tile->flags & TileFlag_HasBoss && world->boss_alive) {
             play->battle_mem = BeginTemp(play->alloc);
-            play->battle     = AllocStruct(play->alloc, Mode_Battle);
-            play->in_battle  = 1;
-            play->battle->boss = 1;
-            if (world->layer_number == 4) {
-                play->battle->final_boss = 1;
-            }
+            play->in_battle  = true;
 
-            ModeBattle(state, play->battle, &play->battle_mem);
-            play->battle->enemy = world->layer_number + 3;
-            play->battle->health = &play->health;
-            play->music->volume = 0;
-            play->music->flags = 0;
+            Enemy_Type type = (world->layer_number != 4) ? EnemyType_Boss : EnemyType_FinalBoss;
+
+            Mode_Battle *battle = ModeBattle(state, world->layer_number, type);
+            play->battle = battle;
+
+            // @Todo: Maybe this should go in the player
+            //
+            battle->health = &play->health;
+
             player_tile->flags &= ~TileFlag_HasEnemy;
             player_tile->flags &= ~TileFlag_HasBoss;
-            world->boss_alive = false;
-            play->battle->boss = 0;
 
-            play->battle->boss = 1;
-            if (world->layer_number == 4) {
-                play->battle->final_boss = 1;
-            }
+            play->music->volume = 0;
+            play->music->flags  = 0;
 
-            play->level_state = LevelState_TransitionBattle;
+            // play->level_state = LevelState_TransitionBattle;
         }
         else {
             Tile *last_tile = GetTileFromRoom(player->room, player->last_pos.x, player->last_pos.y);
@@ -233,12 +214,14 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
     // @Debug: Debug camera stuff
     //
+#if LUDUM_DEBUG
     if (JustPressed(input->f[2])) {
         play->debug_camera = !play->debug_camera;
         if (play->debug_camera) {
             play->debug_camera_pos = V3(RoomGridToWorld(world, player->room, player->grid_pos), 10);
         }
     }
+#endif
 
     if (play->debug_camera) {
         if (IsPressed(input->mouse_buttons[MouseButton_Left])) {
@@ -251,7 +234,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
     if (JustPressed(controller->interact)) {
         Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
-        
+
         umm cost = 10;
         if(player_tile->flags&TileFlag_ShopItem){
             if(player->money >= cost && !player->carrying){
@@ -305,12 +288,10 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     }
 
     UpdateAnimation(&world->enemy_animation, dt);
-    UpdateAnimation(player->animation, dt);
-    if(player->room->flags&RoomFlag_IsShop){
-        UpdateAnimation(&player->room->hermes.anim, dt);
-    }
-    DrawAnimation(batch, player->animation, V3(player_world_pos), world->tile_size);
+    if(player->room->flags & RoomFlag_IsShop) { UpdateAnimation(&player->room->hermes.anim, dt); }
 
+
+    DrawAnimation(batch, player->animation, V3(player_world_pos), world->tile_size);
 
     UpdateRenderEnemies(batch, world, dt, player->room);
 
@@ -373,18 +354,18 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
                 play->level_state = LevelState_Playing;
 
                 play->battle_mem = BeginTemp(play->alloc);
-                play->battle     = AllocStruct(play->alloc, Mode_Battle);
                 play->in_battle  = true;
 
-                ModeBattle(state, play->battle, &play->battle_mem);
+                Mode_Battle *battle = ModeBattle(state, world->layer_number, EnemyType_Standard);
+                play->battle = battle;
+
+                battle->health = &play->health;
 
                 play->music->volume = 0;
                 play->music->flags  = 0;
-                play->battle->health = &play->health;
 
                 Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
                 player_tile->flags &= ~TileFlag_HasEnemy;
-                
 
                 for (u32 it = 0; it < world->enemy_count; ++it) {
                     Enemy *enemy = &world->enemies[it];

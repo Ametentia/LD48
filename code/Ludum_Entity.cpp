@@ -40,6 +40,8 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
 
     player->move_delay_timer -= dt;
 
+    if (player->first_move) { player->move_delay_timer = -1; }
+
     if (IsPressed(controller->up)) {
         target_offset.y = 1;
         move_animation = &world->player_animations[1];
@@ -56,6 +58,9 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
         target_offset.x = 1;
         move_animation = &world->player_animations[2];
     }
+    else {
+        player->first_move = true;
+    }
 
     if (player->move_delay_timer >= 0) {
         target_offset = V2S(0, 0);
@@ -66,6 +71,7 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
 
     v2s target = V2S(player->grid_pos.x + target_offset.x, player->grid_pos.y + target_offset.y);
     if (!IsEqual(target_offset, V2S(0, 0))) {
+        player->first_move = false;
         if (IsValid(player->room, target.x, target.y)) {
             player->last_pos = player->grid_pos;
             player->move_timer = 0;
@@ -78,9 +84,9 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
                 MoveToRoom(player, target);
             }
         }
-    }
 
-    if (move_animation) { player->animation = move_animation; }
+        if (move_animation) { player->animation = move_animation; }
+    }
 
     player->move_timer += dt;
 

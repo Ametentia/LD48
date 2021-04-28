@@ -38,6 +38,7 @@ struct Player {
     v2s grid_pos;
     v2s last_pos;
 
+    b32 first_move;
     f32 move_timer;
     f32 move_delay_timer;
 
@@ -58,10 +59,6 @@ struct Mode_Play {
 
     // Can be changed to whatever we need
     //
-    v2 player_position;
-    umm grid_position;
-    Animation *last_anim;
-
     b32 in_battle;
     Temporary_Memory battle_mem;
     Mode_Battle *battle;

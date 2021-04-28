@@ -52,13 +52,13 @@ internal b32 SDL2Initialise(u32 width, u32 height, u32 display_index = 0) {
     desired.userdata = 0;
 
     global_audio_device = SDL_OpenAudioDevice(0, 0, &desired, &acquired, 0);
-    if (global_audio_device == 0) {
+    if (global_audio_device != 0) {
+        SDL_PauseAudioDevice(global_audio_device, 0);
+    }
+    else {
         // @Todo: Logging...
         //
-        return result;
     }
-
-    SDL_PauseAudioDevice(global_audio_device, 0);
 
     result = true;
     return result;
@@ -297,7 +297,9 @@ internal void SDL2OutputSounds(Game_Context *context, Sound_Buffer *sound_buffer
     sound_buffer->sample_count = frame_sample_size / sizeof(s16);
     LudumOutputSoundSamples(context, sound_buffer);
 
-    SDL_QueueAudio(global_audio_device, sound_buffer->samples, frame_sample_size);
+    if (global_audio_device != 0) {
+        SDL_QueueAudio(global_audio_device, sound_buffer->samples, frame_sample_size);
+    }
 }
 
 internal u64 SDL2GetCurrentTicks() {
