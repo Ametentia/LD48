@@ -134,7 +134,6 @@ internal void GenerateShop(World *world, Asset_Manager *assets, Room *room){
     umm items = 0;
     for(umm i = 0; i < shop_tiles_grid.x; i++){
         for(umm j = 0; j < shop_tiles_grid.y; j++){
-            umm index = i*(umm)shop_tiles_grid.x+j;
             Tile *tile = &room->tiles[(((((room->dim.x/2))-1+j)*room->dim.x + (room->dim.y/2))-1+i)-1];
             if(i*shop_tiles_grid.x+j == 1){
                 *tile = tiles_arr[0];
@@ -280,8 +279,6 @@ internal void GenerateRoomLayout(World *world, Asset_Manager *assets, Room *room
         GetImageByName(assets, "object_02"),
         GetImageByName(assets, "rock")
     };
-
-    Image_Handle stairs = GetImageByName(assets, "stairs");
 
     Image_Handle border_corner = GetImageByName(assets, "border_corner");
     Image_Handle border_bottom = GetImageByName(assets, "border_bottom");

@@ -78,7 +78,7 @@ internal f32 BeatCount(f32 timer, f32 bpm) {
 internal s32 BeatCheck(f32 bpm, Call *call, f32 timer){
     s32 result = -1;
 
-    for (s32 i = 0; i < call->beat_count; i++) {
+    for (s32 i = 0; i < cast(s32) call->beat_count; i++) {
         f32 acc = BeatCount(timer, bpm) - call->beats[i];
         if (acc < 0.1 && acc >= 0) {
             result = i;
@@ -92,7 +92,7 @@ internal s32 BeatCheck(f32 bpm, Call *call, f32 timer){
 internal s32 PlayerCheck(f32 bpm, Call *call, f32 timer){
     s32 result = -1;
 
-    for (s32 i = 0; i < call->beat_count; i++) {
+    for (s32 i = 0; i < cast(s32) call->beat_count; i++) {
         f32 acc = BeatCount(timer, bpm) - (call->beats[i]) - 4.0;
         if (acc < 0.300 && acc >= -0.300) {
             result = i + call->beat_count;
@@ -230,7 +230,7 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
     s32 player_beat = PlayerCheck(battle->bpm, call, battle->timer);
 
     if (cpu_beat != -1 && battle->wave > -1) {
-        if((cpu_beat + 1) > call->beats_shown){
+        if((cpu_beat + 1) > cast(s32) call->beats_shown){
             call->beats_shown = cpu_beat + 1;
             Button button    = call->beat_buttons[cpu_beat];
 
@@ -245,7 +245,7 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
     b32 note_hit = 0;
     if (player_beat != -1 && battle->wave > -1) {
         s32 beat_count = call->beat_count;
-        if ((player_beat + 1) > call->beats_shown) { call->beats_shown = player_beat + 1; }
+        if ((player_beat + 1) > cast(s32) call->beats_shown) { call->beats_shown = player_beat + 1; }
 
         u32 beat_index = player_beat % beat_count;
         b32 visible    = call->visible[beat_index];
@@ -264,7 +264,7 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
         }
     }
 
-    s32 beat_count = call->beat_count;
+    u32 beat_count = cast(u32) call->beat_count;
     for (u32 i = 0; i < call->beats_shown; i++) {
         s32 beat_index = i % beat_count;
 

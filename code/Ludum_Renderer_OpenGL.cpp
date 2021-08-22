@@ -46,7 +46,6 @@ internal b32 OpenGLCompileProgram(GLuint *handle, const GLchar *vertex_code, con
     if (!success) {
         char log[1024];
         glGetShaderInfoLog(vertex_shader, sizeof(log), 0, log);
-
         glDeleteShader(vertex_shader);
 
         return result;
@@ -61,7 +60,6 @@ internal b32 OpenGLCompileProgram(GLuint *handle, const GLchar *vertex_code, con
     if (!success) {
         char log[1024];
         glGetShaderInfoLog(fragment_shader, sizeof(log), 0, log);
-
         glDeleteShader(fragment_shader);
         glDeleteShader(vertex_shader);
 
@@ -78,7 +76,6 @@ internal b32 OpenGLCompileProgram(GLuint *handle, const GLchar *vertex_code, con
     if (!success) {
         char log[1024];
         glGetProgramInfoLog(program, sizeof(log), 0, log);
-
         glDeleteProgram(program);
     }
     else {

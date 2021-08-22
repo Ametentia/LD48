@@ -15,7 +15,6 @@ global SDL_GLContext global_gl_context;
 #include "Ludum_Renderer_OpenGL.h"
 #include "Ludum_Renderer_OpenGL.cpp"
 
-
 typedef void type_glXSwapIntervalEXT(Display *, GLXDrawable, int);
 global type_glXSwapIntervalEXT *glXSwapIntervalEXT;
 

@@ -5,6 +5,11 @@ struct Ui_Context {
     Render_Batch *batch;
     v2 mouse;
     Game_Button left_button;
+    Game_Button action_button;
+
+    b32 using_mouse;
+    s32 selection_index;
+    u32 button_index;
 
     u32 hot;
     u32 active;

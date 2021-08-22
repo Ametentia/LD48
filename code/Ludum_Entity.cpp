@@ -8,7 +8,7 @@ internal void MoveToRoom(Player *player, v2s target) {
         x = new_room->dim.x - 1;
         y = new_room->dim.y / 2;
     }
-    else if (target.x >= player->room->dim.x) { // Move right room
+    else if (target.x >= cast(s32) player->room->dim.x) { // Move right room
         new_room = player->room->connections[1];
 
         x = 0;
@@ -20,7 +20,7 @@ internal void MoveToRoom(Player *player, v2s target) {
         x = new_room->dim.x / 2;
         y = new_room->dim.y - 1;
     }
-    else if (target.y >= player->room->dim.y) { // Move up room
+    else if (target.y >= cast(s32) player->room->dim.y) { // Move up room
         new_room = player->room->connections[3];
 
         x = new_room->dim.x / 2;
@@ -66,7 +66,7 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
         target_offset = V2S(0, 0);
     }
     else {
-        player->move_delay_timer = 0.23f;
+        player->move_delay_timer = 0.3f;
     }
 
     v2s target = V2S(player->grid_pos.x + target_offset.x, player->grid_pos.y + target_offset.y);
@@ -85,8 +85,9 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
             }
         }
 
-        if (move_animation) { player->animation = move_animation; }
     }
+
+    if (move_animation) { player->animation = move_animation; }
 
     player->move_timer += dt;
 
@@ -96,7 +97,7 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
 internal v2 GetPlayerWorldPosition(World *world, Player *player) {
     v2 result;
     if (!IsEqual(player->grid_pos, player->last_pos)) {
-        f32 alpha = player->move_timer / 0.23f;
+        f32 alpha = player->move_timer / 0.30f;
         v2 a = RoomGridToWorld(world, player->room, player->grid_pos);
         v2 b = RoomGridToWorld(world, player->room, player->last_pos);
 
@@ -118,7 +119,7 @@ internal void GenerateEnemies(World *world) {
     u32 min_enemy_count = world->room_count + (world->room_count / 2);
     u32 max_enemy_count = 6 * world->room_count;
 
-    world->enemy_count = max_enemy_count; // RandomBetween(&world->rng, min_enemy_count, max_enemy_count - 1);
+    world->enemy_count = RandomBetween(&world->rng, min_enemy_count, max_enemy_count - 1);
     for (u32 it = 0; it < world->enemy_count; ++it) {
         Enemy *enemy = &world->enemies[it];
 

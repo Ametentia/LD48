@@ -59,6 +59,24 @@ inline string WrapZ(char *str, umm count) {
     return result;
 }
 
+inline b32 EndsWith(string str, string ending) {
+    b32 result = true;
+
+    umm count = Min(str.count, ending.count);
+    string end;
+    end.count = count;
+    end.data  = str.data + (str.count - end.count);
+
+    for (umm it = 0; it < end.count; ++it) {
+        if (end.data[it] != ending.data[it]) {
+            result = false;
+            break;
+        }
+    }
+
+    return result;
+}
+
 inline b32 IsNumber(u8 c) {
     b32 result = (c >= '0') && (c <= '9');
     return result;

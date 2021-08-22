@@ -21,10 +21,10 @@ internal void ModePlay(Game_State *state) {
 
     // Setup walk animations
     //
-    world->player_animations[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.25);
-    world->player_animations[1] = CreateAnimation(GetImageByName(&state->assets, "backward_walk"), 4, 1, 0.25);
-    world->player_animations[2] = CreateAnimation(GetImageByName(&state->assets, "right_walk"),    2, 1, 0.25);
-    world->player_animations[3] = CreateAnimation(GetImageByName(&state->assets, "left_walk"),     2, 1, 0.25);
+    world->player_animations[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.18);
+    world->player_animations[1] = CreateAnimation(GetImageByName(&state->assets, "backward_walk"), 4, 1, 0.18);
+    world->player_animations[2] = CreateAnimation(GetImageByName(&state->assets, "right_walk"),    2, 1, 0.18);
+    world->player_animations[3] = CreateAnimation(GetImageByName(&state->assets, "left_walk"),     2, 1, 0.18);
 
     world->enemy_animation = CreateAnimation(GetImageByName(&state->assets, "enemy"), 2, 1, 0.45);
 
@@ -282,7 +282,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
     if(player->carrying){
         Tile *tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
-        if(tile->flags&TileFlag_ShopItem|TileFlag_ShopEmpty){
+        if(tile->flags & (TileFlag_ShopItem | TileFlag_ShopEmpty)) {
             DrawQuad(batch, GetImageByName(&state->assets, "pay"), V3(player->room->hermes.pos.x,player->room->hermes.pos.y+0.5,0),V2(1,0.5));
         }
     }

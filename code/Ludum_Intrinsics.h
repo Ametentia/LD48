@@ -3,10 +3,7 @@
 
 #include <math.h>
 
-#define Min(a, b) (((a) < (b)) ? (a) : (b))
-#define Max(a, b) (((a) > (b)) ? (a) : (b))
-#define Abs(a) (((a) < 0) ? -(a) : (a))
-#define Lerp(a, b, alpha) (((alpha) * (a)) + ((1 - (alpha)) * (b)))
+#if ARCH_AMD64
 
 inline f32 Sqrt(f32 x) {
     f32 result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set1_ps(x)));
@@ -17,6 +14,20 @@ inline f32 ReciprocalSqrt(f32 x) {
     f32 result = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set1_ps(x)));
     return result;
 }
+
+#elif ARCH_AARCH64
+
+inline f32 Sqrt(f32 x) {
+    f32 result = vgetq_lane_f32(vsqrtq_f32(vdupq_n_f32(x)), 0);
+    return result;
+}
+
+inline f32 ReciprocalSqrt(f32 x) {
+    f32 result = vrsqrtes_f32(x); // I'm not sure why there are f32 versions of this but not for sqrt
+    return result;
+}
+
+#endif
 
 inline f32 Sin(f32 x) {
     f32 result = sinf(x);

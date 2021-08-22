@@ -27,6 +27,7 @@ internal void LudumUpdateRender(Game_Context *context, Game_Input *input, Draw_C
 
     if (state->mode == GameMode_None) {
         ModeSplash(state);
+        //ModeMenu(state);
     }
 
     switch (state->mode) {

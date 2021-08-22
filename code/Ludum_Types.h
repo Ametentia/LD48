@@ -176,6 +176,11 @@ struct rect3 {
 #define OffsetOf(type, member) ((umm) &(((type *) 0)->member))
 #define Swap(a, b) { auto __temp = a; a = b; b = __temp; }
 
+#define Min(a, b) (((a) < (b)) ? (a) : (b))
+#define Max(a, b) (((a) > (b)) ? (a) : (b))
+#define Abs(a) (((a) < 0) ? -(a) : (a))
+#define Lerp(a, b, alpha) (((alpha) * (a)) + ((1 - (alpha)) * (b)))
+
 #define Kilobytes(x) (1024LL * (x))
 #define Megabytes(x) (1024LL * Kilobytes(x))
 #define Gigabytes(x) (1024LL * Megabytes(x))
@@ -197,6 +202,7 @@ struct rect3 {
         #include <x86intrin.h>
     #endif
 #elif ARCH_AARCH64
+    #include <arm_neon.h>
     // @Todo(James): Figure out if there are any includes needed for NEON
     //
     #define __BREAKPOINT asm("BKPT")

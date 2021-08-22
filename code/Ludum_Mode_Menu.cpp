@@ -3,7 +3,7 @@ internal b32 Button(Ui_Context *ui, u32 id, v2 pos, Image_Handle image) {
 
     b32 hot = false;
 
-    if (WasPressed(ui->left_button)) {
+    if (JustPressed(ui->left_button) || JustPressed(ui->action_button)) {
         if (id == ui->hot) {
             ui->active = id;
             result = true;
@@ -25,11 +25,19 @@ internal b32 Button(Ui_Context *ui, u32 id, v2 pos, Image_Handle image) {
         bounds.min = pos - (0.5 * dim);
         bounds.max = pos + (0.5 * dim);
 
-        if (Contains(bounds, ui->mouse)) {
+        if (ui->using_mouse) {
+            if (Contains(bounds, ui->mouse)) {
+                ui->hot = id;
+                hot = true;
+            }
+        }
+        else if ((ui->selection_index == cast(s32) ui->button_index)) {
             ui->hot = id;
             hot = true;
         }
     }
+
+    ui->button_index += 1;
 
     v4 c = V4(1, 1, 1, 1);
     if (hot) { c = V4(0.70, 0.70, 0.70, 1.0); }
@@ -82,7 +90,6 @@ internal void UpdateRenderModeMenu(Game_State *state, Game_Input *input, Draw_Co
         return;
     }
 
-
     Image_Handle title = GetImageByName(&state->assets, "menu_title");
     DrawQuad(batch, title, V2(0, 0.8), 2, 0, V4(1, 1, 1, 1));
 
@@ -92,11 +99,42 @@ internal void UpdateRenderModeMenu(Game_State *state, Game_Input *input, Draw_Co
         GetImageByName(&state->assets, "menu_exit")
     };
 
+    // UI Setup
+    //
     Ui_Context *ui = &menu->ui;
 
     ui->batch = batch;
     ui->mouse = V2(Unproject(&batch->game_tx, V2(input->mouse_clip)));
     ui->left_button = input->mouse_buttons[MouseButton_Left];
+    ui->action_button = controller->action;
+
+    b32 mouse_moved = Dot(input->mouse_delta, input->mouse_delta) != 0.0;
+
+    if (JustPressed(controller->up)) {
+        if (ui->using_mouse) {
+            ui->using_mouse = false;
+        }
+        else {
+            ui->selection_index -= 1;
+        }
+    }
+    else if (JustPressed(controller->down)) {
+        if (ui->using_mouse) {
+            ui->using_mouse = false;
+        }
+        else {
+            ui->selection_index += 1;
+        }
+    }
+    else if (mouse_moved) {
+        ui->using_mouse = true;
+        ui->selection_index = 0;
+    }
+
+    if (ui->selection_index < 0) { ui->selection_index = ui->button_index - 1; }
+    else if (cast(u32) ui->selection_index >= ui->button_index) { ui->selection_index = 0; }
+
+    ui->button_index = 0;
 
     if (Button(ui, 1, V2(1.2, -0.50), text[0])) {
         menu->music->flags = 0;

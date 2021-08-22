@@ -2,9 +2,9 @@
 #define LUDUM_H_
 
 #include "Ludum_Types.h"
+#include "Ludum_Intrinsics.h"
 #include "Ludum_Utility.h"
 
-#include "Ludum_Intrinsics.h"
 #include "Ludum_Maths.h"
 
 #include "Ludum_Platform.h"

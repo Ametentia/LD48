@@ -1,5 +1,5 @@
 internal Move_Type GetOppositeMove(Move_Type move) {
-    Move_Type opp;
+    Move_Type opp = MoveType_None;
     switch(move) {
         case MoveType_Up: {
             opp = MoveType_Down;
@@ -25,7 +25,6 @@ internal Move FindMove(Block blocks[], v2 empty, Move_Type lastMove, Random *ran
     u8 moveCount = 0;
     for(u8 i = 0; i < 8; i++) {
         Block block = blocks[i];
-        Move_Type opposite;
         f32 diffX = block.pos.x - empty.x;
         f32 diffY = block.pos.y - empty.y;
         f32 change = Abs(diffX) + Abs(diffY);

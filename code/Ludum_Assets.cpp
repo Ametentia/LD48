@@ -152,8 +152,6 @@ internal void LoadImage(Asset_Manager *manager, Image_Handle handle) {
 internal void LoadSound(Asset_Manager *manager, Sound_Handle handle) {
     Asset *asset = GetAssetFromHandleValue(manager, handle.value);
     if (asset->state == AssetState_Unloaded) {
-        Amt_Sound *info = &asset->amt.sound;
-
         // @Todo(James): This will need to change a bit if we want to do asset streaming and unloading
         // as we just allocate the memory for the sound and keep it there once its loaded and it is
         // never freed
