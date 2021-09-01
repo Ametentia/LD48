@@ -278,3 +278,22 @@ internal Playing_Sound *PlaySound(Game_State *state, Sound_Handle handle, f32 vo
 
     return result;
 }
+
+internal void FlushAllPlayingSounds(Game_State *state) {
+    Playing_Sound *sound = state->playing_sounds;
+    while (sound != 0) {
+        Playing_Sound *next = sound->next;
+
+        sound->handle         = {};
+        sound->volume         = 0;
+        sound->samples_played = 0;
+        sound->flags          = 0;
+
+        sound->next = state->free_playing_sounds;
+        state->free_playing_sounds = sound;
+
+        sound = next;
+    }
+
+    state->playing_sounds = 0;
+}

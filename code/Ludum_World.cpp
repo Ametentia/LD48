@@ -116,40 +116,63 @@ internal void PlaceExitStructure(Asset_Manager *assets, World *world, Room *room
     GetTileFromRoom(room, x + 1, y - 2)->flags |= TileFlag_HasBoss;
 }
 
-internal void GenerateShop(World *world, Asset_Manager *assets, Room *room){
-    Tile *tiles_arr = AllocArray(world->alloc, Tile, 6);
-    Image_Handle bg_tile = GetImageByName(assets, "shop_tile");
-    Image_Handle reinforcement = GetImageByName(assets, "string_reinforcement");
-    Image_Handle extra_string = GetImageByName(assets, "extra_string");
-    Image_Handle repellant = GetImageByName(assets, "repellant");
-    tiles_arr[0] = { 0x100, 1, 1, bg_tile, {0}};
-    tiles_arr[2] = { 0x200, 1, 1, bg_tile, reinforcement };
-    tiles_arr[3] = { 0x400, 1, 1, bg_tile, repellant };
-    tiles_arr[4] = { 0x800, 1, 1, bg_tile, extra_string };
-    tiles_arr[5] = { 0x1000, 1, 1, bg_tile, {0} };
+internal void GenerateShop(World *world, Asset_Manager *assets, Room *room) {
+    u32 x_size_table[] = { 2, 2, 2, 2, 3, 3, 3, 4, 4, 5 };
+    u32 y_size_table[] = { 2, 2, 2, 3, 3, 3, 3, 4, 5, 5 };
+
+    u32 x_index = RandomBetween(&world->rng, 0U, ArrayCount(x_size_table));
+    u32 y_index = RandomBetween(&world->rng, 0U, ArrayCount(y_size_table));
+
+    v2u shop_tiles_grid = V2U(x_size_table[x_index], y_size_table[y_index]);
+
+    // Can't place shop as the room is too small to safely place
+    //
+    if (room->dim.x < (shop_tiles_grid.x + 2) || room->dim.y < (shop_tiles_grid.y + 2)) { return; }
+
+    Image_Handle images[] = {
+        GetImageByName(assets, "shop_tile"),
+        GetImageByName(assets, "string_reinforcement"),
+        GetImageByName(assets, "repellant"),
+        GetImageByName(assets, "extra_string")
+    };
 
     // @Todo: Shop tiles can spawn on the edge of the room
     //
-    v2 shop_tiles_grid = V2(3,3);
-    umm items = 0;
-    for(umm i = 0; i < shop_tiles_grid.x; i++){
-        for(umm j = 0; j < shop_tiles_grid.y; j++){
-            Tile *tile = &room->tiles[(((((room->dim.x/2))-1+j)*room->dim.x + (room->dim.y/2))-1+i)-1];
-            if(i*shop_tiles_grid.x+j == 1){
-                *tile = tiles_arr[0];
+    u32 item_count     = 0;
+    u32 max_item_count = cast(u32) ((shop_tiles_grid.x * shop_tiles_grid.y) / 2);
+
+    v2s bottom_left;
+    bottom_left.x = RandomBetween(&world->rng, 2, room->dim.x - (shop_tiles_grid.x + 2));
+    bottom_left.y = RandomBetween(&world->rng, 2, room->dim.y - (shop_tiles_grid.y + 2));
+
+    for (u32 x = 0; x < shop_tiles_grid.x; x++) {
+        for (u32 y = 0; y < shop_tiles_grid.y; y++) {
+            u32 tile_index = ((bottom_left.y + y) * room->dim.x) + (bottom_left.x + x);
+            Tile *tile = &room->tiles[tile_index];
+
+            tile->x           = x;
+            tile->y           = y;
+            tile->image       = images[0];
+            tile->shop_sprite = {};
+
+            b32 tile_placed = true;
+            if (x == 0) {
+                if (0) {}
+                else if (y == (shop_tiles_grid.y - 1)) { tile->flags = TileFlag_HasHermes; }
+                else if (y == (shop_tiles_grid.y - 2)) { tile->flags = TileFlag_ShopEmpty; }
+                else { tile_placed = false; }
             }
-            else if(i*shop_tiles_grid.x+j == 2){
-                *tile = tiles_arr[5];
-            }
-            else if(items < 4){
-                umm rand = RandomBetween(&world->rng, 0U, 4U);
-                *tile = tiles_arr[rand];
-                if(rand > 0){
-                    items++;
+            else { tile_placed = false; }
+
+            if (!tile_placed) {
+                u32 item = RandomBetween(&world->rng, 0U, 4U);
+                if (item_count >= max_item_count) { item = 0; }
+
+                tile->flags = (TileFlag_ShopEmpty << item);
+                if (item != 0) {
+                    tile->shop_sprite = images[item];
+                    item_count += 1;
                 }
-            }
-            else{
-                *tile = tiles_arr[0];
             }
         }
     }
@@ -170,15 +193,9 @@ internal void AddConnections(World *world, Asset_Manager *assets, Room *room) {
         Room *check_room = &world->rooms[it];
         if (check_room == room) { continue; }
 
-#if 0
-        rect2 room_bounds;
-        room_bounds.min = check_room->pos - (0.5f * V2(check_room->dim));
-        room_bounds.max = check_room->pos + (0.5f * V2(check_room->dim));
-#else
         rect2 room_bounds;
         room_bounds.min = check_room->pos - (0.5f * V2(world->max_room_dim));
         room_bounds.max = check_room->pos + (0.5f * V2(world->max_room_dim));
-#endif
 
         for (u32 c = 0; c < 4; ++c) {
             if (Contains(room_bounds, checks[c])) {
@@ -349,7 +366,7 @@ internal void GenerateRoomLayout(World *world, Asset_Manager *assets, Room *room
 
         PlaceExitStructure(assets, world, room, world->layer_number, x, y);
     }
-    else if(RandomBetween(&world->rng, 0U, 10U) > 7){
+    else if (RandomBetween(&world->rng, 0U, 10U) > 7) {
         GenerateShop(world, assets, room);
     }
 }
@@ -428,7 +445,7 @@ internal World CreateWorld(Memory_Allocator *alloc, Asset_Manager *assets, v2u d
         v2 dir, new_pos;
         v2u dim;
 
-        u32 tries = 10;
+        u32 tries  = 10;
         b32 placed = true;
 
         while (true) {
@@ -447,9 +464,6 @@ internal World CreateWorld(Memory_Allocator *alloc, Asset_Manager *assets, v2u d
             dim.x = (RandomBetween(&result.rng, 12U, 35U) | 1);
             dim.y = (RandomBetween(&result.rng, 12U, 35U) | 1);
 
-            Assert(((dim.x % 2) != 0) && ((dim.y % 2) != 0));
-
-            //new_pos = prev->pos + ((dir * 0.5 * V2(prev->dim)) + (dir * 0.5 * V2(dim)));
             new_pos = prev->pos + (dir * V2(result.max_room_dim));
 
             if (CanPlaceRoom(&result, new_pos, dim)) {
@@ -535,7 +549,6 @@ internal void RecreateWorld(World *world, Asset_Manager *assets) {
 
             Assert(((dim.x % 2) != 0) && ((dim.y % 2) != 0));
 
-            //new_pos = prev->pos + ((dir * 0.5 * V2(prev->dim)) + (dir * 0.5 * V2(dim)));
             new_pos = prev->pos + (dir * V2(world->max_room_dim));
 
             if (CanPlaceRoom(world, new_pos, dim)) {

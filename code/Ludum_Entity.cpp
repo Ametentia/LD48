@@ -38,6 +38,7 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
     Animation *move_animation = 0;
     v2s target_offset = V2S(0, 0);
 
+    if (IsEqual(player->grid_pos, player->last_pos)) { player->move_delay_timer = 0; }
     player->move_delay_timer -= dt;
 
     if (player->first_move) { player->move_delay_timer = -1; }
@@ -58,20 +59,17 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
         target_offset.x = 1;
         move_animation = &world->player_animations[2];
     }
-    else {
-        player->first_move = true;
-    }
 
     if (player->move_delay_timer >= 0) {
         target_offset = V2S(0, 0);
     }
     else {
-        player->move_delay_timer = 0.3f;
+        player->move_delay_timer = 0.20f;
     }
 
     v2s target = V2S(player->grid_pos.x + target_offset.x, player->grid_pos.y + target_offset.y);
     if (!IsEqual(target_offset, V2S(0, 0))) {
-        player->first_move = false;
+
         if (IsValid(player->room, target.x, target.y)) {
             player->last_pos = player->grid_pos;
             player->move_timer = 0;
@@ -85,9 +83,8 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
             }
         }
 
+        if (move_animation) { player->animation = move_animation; }
     }
-
-    if (move_animation) { player->animation = move_animation; }
 
     player->move_timer += dt;
 
@@ -97,15 +94,15 @@ internal void MovePlayer(Game_Controller *controller, World *world, f32 dt, Play
 internal v2 GetPlayerWorldPosition(World *world, Player *player) {
     v2 result;
     if (!IsEqual(player->grid_pos, player->last_pos)) {
-        f32 alpha = player->move_timer / 0.30f;
+        f32 alpha = player->move_timer / 0.20f;
         v2 a = RoomGridToWorld(world, player->room, player->grid_pos);
         v2 b = RoomGridToWorld(world, player->room, player->last_pos);
 
         result = Lerp(a, b, alpha);
 
         if (alpha >= 1) {
+            // result = RoomGridToWorld(world, player->room, player->grid_pos);
             player->last_pos = player->grid_pos;
-            result = RoomGridToWorld(world, player->room, player->grid_pos);
         }
     }
     else {
@@ -162,15 +159,23 @@ internal void UpdateRenderEnemies(Render_Batch *batch, World *world, f32 dt, Roo
             target_pos.x = enemy->grid_pos.x + x;
             target_pos.y = enemy->grid_pos.y + y;
             if (IsValid(enemy->room, target_pos.x, target_pos.y)) {
-                enemy->last_pos = enemy->grid_pos;
-                enemy->grid_pos = target_pos;
-                enemy->move_timer = 0;
+                Tile *tile = GetTileFromRoom(enemy->room, target_pos.x, target_pos.y);
 
-                Tile *old_tile = GetTileFromRoom(enemy->room, enemy->last_pos.x, enemy->last_pos.y);
-                old_tile->flags &= ~TileFlag_HasEnemy;
+                // @Note: Stops enemies from walking on top of other enemies and walking into the boss area / on top of the boss
+                // We can't just bake this into the "IsValid" call because it would mean the player would not be able
+                // to 'walk onto' enemeis and bosses to trigger battles
+                //
+                if (!(tile->flags & (TileFlag_HasEnemy | TileFlag_HasBoss))) {
+                    enemy->last_pos = enemy->grid_pos;
+                    enemy->grid_pos = target_pos;
+                    enemy->move_timer = 0;
 
-                Tile *new_tile = GetTileFromRoom(enemy->room, enemy->grid_pos.x, enemy->grid_pos.y);
-                new_tile->flags |= TileFlag_HasEnemy;
+                    Tile *old_tile = GetTileFromRoom(enemy->room, enemy->last_pos.x, enemy->last_pos.y);
+                    old_tile->flags &= ~TileFlag_HasEnemy;
+
+                    Tile *new_tile = GetTileFromRoom(enemy->room, enemy->grid_pos.x, enemy->grid_pos.y);
+                    new_tile->flags |= TileFlag_HasEnemy;
+                }
             }
 
             enemy->move_delay_timer = 0.5;

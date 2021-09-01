@@ -57,6 +57,69 @@ inline v2s V2S(s32 x, s32 y) {
     return result;
 }
 
+inline v2s operator+(v2s a, v2s b) {
+    v2s result;
+    result.x = (a.x + b.x);
+    result.y = (a.y + b.y);
+
+    return result;
+}
+
+inline v2s &operator+=(v2s &a, v2s b) {
+    a = a + b;
+    return a;
+}
+
+inline v2s operator-(v2s a, v2s b) {
+    v2s result;
+    result.x = (a.x - b.x);
+    result.y = (a.y - b.y);
+
+    return result;
+}
+
+inline v2s operator-(v2s a) {
+    v2s result;
+    result.x = -a.x;
+    result.y = -a.y;
+
+    return result;
+}
+
+inline v2s &operator-=(v2s &a, v2s b) {
+    a = a - b;
+    return a;
+}
+
+inline v2s operator*(v2s a, v2s b) {
+    v2s result;
+    result.x = (a.x * b.x);
+    result.y = (a.y * b.y);
+
+    return result;
+}
+
+inline v2s operator*(v2s a, s32 b) {
+    v2s result;
+    result.x = (b * a.x);
+    result.y = (b * a.y);
+
+    return result;
+}
+
+inline v2s operator*(s32 a, v2s b) {
+    v2s result;
+    result.x = (a * b.x);
+    result.y = (a * b.y);
+
+    return result;
+}
+
+inline v2s &operator*=(v2s &a, s32 b) {
+    a = a * b;
+    return a;
+}
+
 inline b32 IsEqual(v2s a, v2s b) {
     b32 result = (a.x == b.x) && (a.y == b.y);
     return result;

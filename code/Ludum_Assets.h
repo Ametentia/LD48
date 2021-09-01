@@ -180,4 +180,6 @@ struct Playing_Sound {
 //
 internal Playing_Sound *PlaySound(Game_State *state, Sound_Handle handle, f32 volume, u32 flags);
 
+internal void FlushAllPlayingSounds(Game_State *state);
+
 #endif  // LUDUM_ASSETS_H_

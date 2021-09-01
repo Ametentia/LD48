@@ -64,6 +64,8 @@ internal Mode_Battle *ModeBattle(Game_State *state, u32 layer_index, Enemy_Type 
         enemy_index = layer_index + 3;
     }
 
+    result->debug_markers = 0;
+
     result->enemy_texture = GetImageByName(&state->assets, enemy_texture_names[enemy_index]);
     result->enemy_hud     = GetImageByName(&state->assets, enemy_bar_texture_names[enemy_index]);
 
@@ -92,10 +94,13 @@ internal s32 BeatCheck(f32 bpm, Call *call, f32 timer){
 internal s32 PlayerCheck(f32 bpm, Call *call, f32 timer){
     s32 result = -1;
 
+    f32 offset = (bpm == 94) ? 4.6 : 4.1;
+
     for (s32 i = 0; i < cast(s32) call->beat_count; i++) {
-        f32 acc = BeatCount(timer, bpm) - (call->beats[i]) - 4.0;
-        if (acc < 0.300 && acc >= -0.300) {
+        f32 acc = (BeatCount(timer, bpm) - offset) - (call->beats[i]);
+        if (acc < 0.2 && acc >= -0.2) {
             result = i + call->beat_count;
+            break;
         }
     }
 
@@ -150,6 +155,8 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
                 b32 all_notes = battle->calls.total_hits >= battle->calls.total_notes;
                 b32 all_calls = battle->calls.current_call >= battle->calls.call_count;
                 if (all_notes || all_calls) {
+                    FlushAllPlayingSounds(state);
+
                     const char *name = (battle->type == EnemyType_FinalBoss) ? "finish_p" : "finish_2";
                     PlaySound(state, GetSoundByName(&state->assets, name), 0.3, 0);
 
@@ -162,11 +169,14 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
                 s32 health = *battle->health;
                 if (health > 0) { health -= 1; }
 
-                if (health == 0) {
-                    battle->done = true;
-                }
-
                 *battle->health = health;
+
+                if (health == 0) {
+                    FlushAllPlayingSounds(state);
+
+                    battle->done = true;
+                    return;
+                }
             }
         }
 
@@ -197,6 +207,7 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
     Image_Handle bar_fill    = GetImageByName(&state->assets, "bar_fill");
 
     // Enemy specific
+    //
     Image_Handle enemy     = battle->enemy_texture;
     Image_Handle enemy_bar = battle->enemy_hud;
 
@@ -242,13 +253,13 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
         }
     }
 
-    b32 note_hit = 0;
+    b32 note_hit = false;
     if (player_beat != -1 && battle->wave > -1) {
         s32 beat_count = call->beat_count;
         if ((player_beat + 1) > cast(s32) call->beats_shown) { call->beats_shown = player_beat + 1; }
 
         u32 beat_index = player_beat % beat_count;
-        b32 visible    = call->visible[beat_index];
+        b32 visible    = call->visible[beat_index] == true;
         Button button  = call->beat_buttons[beat_index];
 
         if (JustPressed(controller->buttons[button]) && !visible) {
@@ -262,6 +273,10 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
 
             note_hit = true;
         }
+        else if (!visible) {
+            call->visible[beat_index] = 100;
+            call->pos[player_beat]    = V2(battle->metronome.x, -1.1 - (0.29 * cast(f32) button));
+        }
     }
 
     u32 beat_count = cast(u32) call->beat_count;
@@ -269,8 +284,20 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
         s32 beat_index = i % beat_count;
 
         Image_Handle beat = battle->beat_textures[call->beat_buttons[beat_index]];
-        if(beat_count > i || call->visible[beat_index]) {
-            DrawQuad(batch, beat, call->pos[i], 0.4, 0, V4(1, 1, 1, 1));
+        if (beat_count > i || call->visible[beat_index]) {
+            v4 c = V4(1, 1, 1, 1);
+            if (call->visible[beat_index] == 100) {
+                c = V4(1, 0, 0, 0.70);
+                v2 pos = call->pos[i];
+
+                if (battle->debug_markers == 1) { pos.x += 0.21; }
+                else if (battle->debug_markers == 2) { pos.x += 0.42; }
+
+                DrawQuad(batch, beat, pos, 0.4, 0, c);
+            }
+            else {
+                DrawQuad(batch, beat, call->pos[i], 0.4, 0, c);
+            }
         }
     }
 

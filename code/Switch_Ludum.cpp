@@ -15,29 +15,28 @@ Platform_Context Platform;
 
 RENDERER_INITIALISE(SwitchOpenGLInitialise);
 
-#define SDL_MAIN_HANDLED 1
-#include <SDL2/SDL.h>
-
-global SDL_AudioDeviceID global_audio_device;
-
 global int global_nxlink_socket = -1;
 
 struct Switch_Audio_State {
     b32 enabled;
+    b32 running;
+
+    s32 mem_pool_id;
+    s32 sink;
 
     AudioDriver driver;
-    b32 running;
+
+    u32 write_cursor;
+    u32 read_cursor;
 
     u32 max_sample_count;
     u32 samples_queued;
+    s16 *sample_queue;
 
-    s16 *sample_buffer;
-    u32 write_cursor;
-
+    u32 buffer_sample_count; // Number of samples dequeued per buffer
     AudioDriverWaveBuf buffers[2];
 
     Thread thread;
-    Mutex mutex;
 };
 
 struct Switch_File_List {
@@ -255,7 +254,10 @@ internal void SwitchHandleInput(PadState *pad, Game_Input *current_input, Game_I
 
     HidTouchScreenState touch_state = {};
     if (hidGetTouchScreenStates(&touch_state, 1)) {
-        if (touch_state.count != 0) {
+        pressed = touch_state.count != 0;
+        SwitchHandleButtonPress(&current_input->mouse_buttons[0], pressed);
+
+        if (pressed) {
             u32 index = touch_state.count - 1;
 
             f32 x = cast(f32) touch_state.touches[index].x;
@@ -266,7 +268,10 @@ internal void SwitchHandleInput(PadState *pad, Game_Input *current_input, Game_I
             x = -1.0f + ((2.0f * x) / window_size.x);
             y =  1.0f - ((2.0f * y) / window_size.y);
 
-            current_input->mouse_clip = V3(x, y, 0);
+            v3 old_mouse = current_input->mouse_clip;
+
+            current_input->mouse_clip  = V3(x, y, 0);
+            current_input->mouse_delta = current_input->mouse_clip - old_mouse;
         }
     }
 }
@@ -300,83 +305,91 @@ internal AudioDriverWaveBuf *SwitchGetFreeAudioBuffer(Switch_Audio_State *audio_
     return result;
 }
 
-internal void SwitchOutputSounds(Switch_Audio_State *audio_state, Game_Context *context, Sound_Buffer *sound_buffer) {
-    u32 samples_queued = __atomic_load_n(&audio_state->samples_queued, __ATOMIC_SEQ_CST);
-
-    if (samples_queued < audio_state->max_sample_count) {
-        u32 sample_count = audio_state->max_sample_count - samples_queued;
-
-        sound_buffer->sample_count = sample_count;
-        sound_buffer->samples      = audio_state->sample_buffer + audio_state->write_cursor;
-
-        __atomic_add_fetch(&audio_state->write_cursor, sample_count, __ATOMIC_SEQ_CST);
-
-        mutexLock(&audio_state->mutex);
-        LudumOutputSoundSamples(context, sound_buffer);
-        mutexUnlock(&audio_state->mutex);
-
-        __atomic_add_fetch(&audio_state->samples_queued, sample_count, __ATOMIC_SEQ_CST);
-    }
+internal s16 *SwitchGetAudioBufferBase(AudioDriverWaveBuf *buffer) {
+    s16 *result = cast(s16 *) &buffer->data_pcm16[2 * buffer->start_sample_offset];
+    return result;
 }
 
 internal void SwitchAudioThreadProc(void *param) {
     Switch_Audio_State *audio_state = cast(Switch_Audio_State *) param;
-    while (true) {
-        if (audio_state->samples_queued <= 0) {
-            audrvUpdate(&audio_state->driver);
-            audrenWaitFrame();
-            continue;
+
+    AudioDriver *driver = &audio_state->driver;
+    while (__atomic_load_n(&audio_state->running, __ATOMIC_SEQ_CST)) {
+        AudioDriverWaveBuf *buffer = SwitchGetFreeAudioBuffer(audio_state);
+        if (buffer) {
+            u32 samples_queued     = __atomic_load_n(&audio_state->samples_queued, __ATOMIC_SEQ_CST);
+            u32 samples_to_dequeue = Min(samples_queued, audio_state->buffer_sample_count);
+            u32 read_cursor        = audio_state->read_cursor;
+
+            s16 *buffer_base = SwitchGetAudioBufferBase(buffer);
+
+            if ((read_cursor + samples_to_dequeue) > audio_state->max_sample_count) {
+                // Copy in two chunks
+                //
+                void *samples_src  = cast(void *) &audio_state->sample_queue[read_cursor];
+                void *samples_dst  = cast(void *) buffer_base;
+                u32   sample_count = (audio_state->max_sample_count - read_cursor);
+
+                CopySize(samples_dst, samples_src, sample_count * sizeof(s16));
+
+                samples_src  = cast(void *) audio_state->sample_queue;
+                samples_dst  = cast(void *) &buffer_base[sample_count];
+                sample_count = samples_to_dequeue - sample_count;
+
+                CopySize(samples_dst, samples_src, sample_count * sizeof(s16));
+            }
+            else {
+                // Copy in single chunk
+                //
+                void *samples_src = cast(void *) &audio_state->sample_queue[read_cursor];
+                void *samples_dst = cast(void *) buffer_base;
+                CopySize(samples_dst, samples_src, samples_to_dequeue * sizeof(s16));
+            }
+
+            if (samples_to_dequeue < audio_state->buffer_sample_count) {
+                // Set the rest to silence if there aren't enough samples queued
+                //
+                s16 *silence_samples = &buffer_base[samples_to_dequeue];
+                ZeroSize(silence_samples, (audio_state->buffer_sample_count - samples_to_dequeue) * sizeof(s16));
+            }
+
+            armDCacheFlush(buffer_base, audio_state->buffer_sample_count * sizeof(s16));
+
+            __atomic_sub_fetch(&audio_state->samples_queued, samples_to_dequeue, __ATOMIC_SEQ_CST);
+
+            audrvVoiceAddWaveBuf(driver, 0, buffer);
+
+            audio_state->read_cursor += samples_to_dequeue;
+            audio_state->read_cursor %= audio_state->max_sample_count;
         }
 
-        printf("BLAHHHHHH..\n");
+        audrvUpdate(driver);
 
-        AudioDriverWaveBuf *wave_buffer = SwitchGetFreeAudioBuffer(audio_state);
-        if (wave_buffer) {
-            void *output_buffer = cast(void *) (wave_buffer->data_pcm16 + wave_buffer->start_sample_offset);
-            u32 sample_count    = __atomic_load_n(&audio_state->samples_queued, __ATOMIC_SEQ_CST);
-
-            printf("Copying %d samples... ", sample_count);
-
-            mutexLock(&audio_state->mutex);
-            CopySize(output_buffer, audio_state->sample_buffer, sample_count * sizeof(s16));
-            mutexUnlock(&audio_state->mutex);
-
-            printf("Finished Copy!\n");
-
-            __atomic_store_n(&audio_state->write_cursor, 0, __ATOMIC_SEQ_CST);
-            __atomic_store_n(&audio_state->samples_queued, 0, __ATOMIC_SEQ_CST);
-
-            wave_buffer->end_sample_offset = wave_buffer->start_sample_offset + sample_count;
-
-            audrvVoiceAddWaveBuf(&audio_state->driver, 0, wave_buffer);
-
-            audrvUpdate(&audio_state->driver);
-
-            s32 samples_played = 0;
-            while (wave_buffer->state == AudioDriverWaveBufState_Playing) {
-                //printf("Playing count = %d\n", samples_played);
-                //samples_played = (cast(s32) audrvVoiceGetPlayedSampleCount(&audio_state->driver, 0) - samples_played);
-                //__atomic_sub_fetch(&audio_state->samples_queued, samples_played, __ATOMIC_SEQ_CST);
-
-                audrvUpdate(&audio_state->driver);
+        // Wait until the buffer actually starts playing to prevent re-queuing it next iteration
+        //
+        if (buffer) {
+            while (buffer->state != AudioDriverWaveBufState_Playing) {
+                audrvUpdate(driver);
                 audrenWaitFrame();
             }
         }
         else {
-            wave_buffer = 0;
+            // If we didn't get a buffer to queue then find one that is still playing and wait for it to finish
+            // So we can guarantee a free buffer next iteration
+            //
             for (u32 it = 0; it < ArrayCount(audio_state->buffers); ++it) {
                 if (audio_state->buffers[it].state == AudioDriverWaveBufState_Playing) {
-                    wave_buffer = &audio_state->buffers[it];
+                    buffer = &audio_state->buffers[it];
                     break;
                 }
             }
 
-            while (wave_buffer->state == AudioDriverWaveBufState_Playing) {
-                audrvUpdate(&audio_state->driver);
+            if (!buffer) { continue; }
+
+            while (buffer->state == AudioDriverWaveBufState_Playing) {
+                audrvUpdate(driver);
                 audrenWaitFrame();
             }
-
-            continue;
         }
     }
 }
@@ -397,30 +410,39 @@ internal b32 SwitchInitialiseAudio(Switch_Audio_State *audio_state) {
 
     Result rc = audrenInitialize(&config);
     if (R_FAILED(rc)) {
-        printf("Failed to initialise audio renderer\n");
+        printf("[Error][Switch] :: Failed to initialise audio (0x%x)\n", rc);
         return result;
     }
 
     rc = audrvCreate(&audio_state->driver, &config, 2);
     if (R_FAILED(rc)) {
-        printf("Failed to create driver\n");
+        printf("[Error][Switch] :: Failed to create audio driver (0x%x)\n", rc);
         return result;
     }
 
-    audio_state->max_sample_count = sample_rate / 4; // * 10;
+    audio_state->max_sample_count    = (sample_rate / 4);
+    audio_state->samples_queued      = 0;
+    audio_state->sample_queue        = cast(s16 *) malloc(audio_state->max_sample_count * sizeof(s16));
+    ZeroSize(audio_state->sample_queue, audio_state->max_sample_count * sizeof(s16));
 
-    umm mem_pool_size = 2 * (audio_state->max_sample_count * channel_count * sizeof(s16));
-    mem_pool_size     = (mem_pool_size + 0xFFF) & ~0xFFF;
+    audio_state->read_cursor         = 0;
+    audio_state->write_cursor        = 0;
 
-    void *mem_pool_base = memalign(0x1000, mem_pool_size);
-    s32 mem_pool_id = audrvMemPoolAdd(&audio_state->driver, mem_pool_base, mem_pool_size);
-    audrvMemPoolAttach(&audio_state->driver, mem_pool_id);
+    audio_state->buffer_sample_count = channel_count * 1024;
 
-    ZeroSize(mem_pool_base, mem_pool_size);
-    armDCacheFlush(mem_pool_base, mem_pool_size);
+    umm mem_pool_size = ArrayCount(audio_state->buffers) * (audio_state->buffer_sample_count * sizeof(s16));
+    umm aligned_size  = (mem_pool_size + 0xFFF) & ~0xFFF; // Audio buffer memory has to be aligned to 4096 bytes
+
+    void *mem_pool    = memalign(0x1000, aligned_size);
+
+    ZeroSize(mem_pool, aligned_size);
+    armDCacheFlush(mem_pool, aligned_size);
+
+    audio_state->mem_pool_id = audrvMemPoolAdd(&audio_state->driver, mem_pool, aligned_size);
+    audrvMemPoolAttach(&audio_state->driver, audio_state->mem_pool_id);
 
     u8 channel_ids[2] = { 0, 1 };
-    audrvDeviceSinkAdd(&audio_state->driver, AUDREN_DEFAULT_DEVICE_NAME, 2, channel_ids);
+    audio_state->sink = audrvDeviceSinkAdd(&audio_state->driver, AUDREN_DEFAULT_DEVICE_NAME, 2, channel_ids);
 
     audrvUpdate(&audio_state->driver);
 
@@ -432,7 +454,6 @@ internal b32 SwitchInitialiseAudio(Switch_Audio_State *audio_state) {
 
     audrvVoiceSetMixFactor(&audio_state->driver, 0, 1.0f, 0, 0);
     audrvVoiceSetMixFactor(&audio_state->driver, 0, 0.0f, 0, 1);
-
     audrvVoiceSetMixFactor(&audio_state->driver, 0, 0.0f, 1, 0);
     audrvVoiceSetMixFactor(&audio_state->driver, 0, 1.0f, 1, 1);
 
@@ -440,318 +461,106 @@ internal b32 SwitchInitialiseAudio(Switch_Audio_State *audio_state) {
         AudioDriverWaveBuf *buffer  = &audio_state->buffers[it];
 
         buffer->state               = AudioDriverWaveBufState_Free;
-        buffer->data_raw            = mem_pool_base;
+        buffer->data_raw            = mem_pool;
         buffer->size                = mem_pool_size;
-        buffer->start_sample_offset = (it * audio_state->max_sample_count);
-        buffer->end_sample_offset   = 0;
-        buffer->is_looping          = false;
+        buffer->start_sample_offset = (it * (audio_state->buffer_sample_count / channel_count));
+        buffer->end_sample_offset   = (buffer->start_sample_offset + (audio_state->buffer_sample_count / channel_count));
     }
-
-    audio_state->sample_buffer = cast(s16 *) malloc(audio_state->max_sample_count * sizeof(s16));
 
     audrvVoiceStart(&audio_state->driver, 0);
     audrvUpdate(&audio_state->driver);
 
-    printf("CREATING MUTEX\n");
-    mutexInit(&audio_state->mutex);
+    audio_state->running = true;
 
-    printf("CREATING THREAD\n");
-
-    rc = threadCreate(&audio_state->thread, SwitchAudioThreadProc, cast(void *) audio_state, 0, Megabytes(8), 0x3B, -2);
+    rc = threadCreate(&audio_state->thread, SwitchAudioThreadProc, cast(void *) audio_state, 0, Megabytes(2), 0x3B, -2);
     if (R_FAILED(rc)) {
-        printf("Failed to create audio thread (0x%x)\n", rc);
+        printf("[Error][Switch] :: Failed to create audio thread (0x%x)\n", rc);
         return result;
     }
 
-    printf("STARTING THREAD\n");
-
-    threadStart(&audio_state->thread);
-
-    printf("STARTED THREAD\n");
-
-#if 0
     rc = threadStart(&audio_state->thread);
     if (R_FAILED(rc)) {
-        printf("Failed to start audio thread (0x%x)\n", rc);
+        printf("[Error][Switch] :: Failed to start audio thread (0x%x)\n", rc);
         return result;
     }
-#endif
 
-#if 0
-    umm mem_pool_size = 2 * (audio_state->max_sample_count * channel_count * sizeof(s16));
-    mem_pool_size = (mem_pool_size + 0xFFF) & ~0xFFF;
-
-    void *mem_pool_base = memalign(0x1000, mem_pool_size);
-    s32 mem_pool_id = audrvMemPoolAdd(&audio_state->driver, mem_pool_base, mem_pool_size);
-    audrvMemPoolAttach(&audio_state->driver, mem_pool_id);
-
-    ZeroSize(mem_pool_base, mem_pool_size);
-    armDCacheFlush(mem_pool_base, mem_pool_size);
-
-    u8 channel_ids[2] = { 0, 1 };
-    audrvDeviceSinkAdd(&audio_state->driver, AUDREN_DEFAULT_DEVICE_NAME, 2, channel_ids);
-
-    audrvUpdate(&audio_state->driver);
-
-    audrenStartAudioRenderer();
-
-    printf("Started audio renderer\n");
-
-    for (u32 it = 0; it < 3; ++it) {
-        audrvVoiceInit(&audio_state->driver, it, channel_count, PcmFormat_Int16, sample_rate);
-
-        audrvVoiceSetDestinationMix(&audio_state->driver, it, AUDREN_FINAL_MIX_ID);
-
-        audrvVoiceSetMixFactor(&audio_state->driver, it, 1.0f, 0, 0);
-        audrvVoiceSetMixFactor(&audio_state->driver, it, 0.0f, 1, 0);
-        audrvVoiceSetMixFactor(&audio_state->driver, it, 0.0f, 0, 1);
-        audrvVoiceSetMixFactor(&audio_state->driver, it, 1.0f, 1, 1);
-    }
-
-    printf("Setup voices\n");
-
-    for (u32 it = 0; it < ArrayCount(audio_state->buffers); ++it) {
-        AudioDriverWaveBuf *buffer = &audio_state->buffers[it];
-
-        buffer->state               = AudioDriverWaveBufState_Free;
-        buffer->data_raw            = mem_pool_base;
-        buffer->size                = mem_pool_size;
-        buffer->start_sample_offset = (it * audio_state->max_sample_count);
-        buffer->end_sample_offset   = buffer->start_sample_offset;
-    }
-
-    printf("Started voices\n");
-
-    audio_state->current_buffer_index = -1;
-#endif
+    audio_state->enabled = true;
 
     result = true;
     return result;
 }
 
-#if 0
-internal void SwitchOutputSounds(Switch_Audio_State *audio_state, Game_Context *context, Sound_Buffer *sound_buffer) {
-    if (audrvVoiceIsPlaying(&audio_state->driver, 0)) {
-        audio_state->read_cursor += audrvVoiceGetPlayedSampleCount(&audio_state->driver, 0);
-    }
+internal void SwitchShutdownAudio(Switch_Audio_State *audio_state) {
+    __atomic_store_n(&audio_state->running, false, __ATOMIC_SEQ_CST);
+    threadWaitForExit(&audio_state->thread);
 
-    printf("-- Read cursor: %d, Write cursor: %d --\n", audio_state->read_cursor, audio_state->write_cursor);
+    threadClose(&audio_state->thread);
 
-    s32 samples_to_write = audio_state->max_sample_count - (audio_state->write_cursor - audio_state->read_cursor);
-    if (samples_to_write > 0) {
-        sound_buffer->sample_count = samples_to_write;
-        sound_buffer->samples      = audio_state->sample_buffer;
-
-        printf("Getting samples from game\n");
-
-        LudumOutputSoundSamples(context, sound_buffer);
-
-        if ((audio_state->sample_index + samples_to_write) > audio_state->max_sample_count) {
-            printf("Split output of %d samples\n", samples_to_write);
-            // Segment one
-            //
-            AudioDriverWaveBuf *buffer_0 = SwitchGetFreeAudioBuffer(audio_state);
-            if (buffer_0) {
-                buffer_0->start_sample_offset = audio_state->sample_index;
-                buffer_0->end_sample_offset   = audio_state->max_sample_count;
-
-                s16 *samples_to   = buffer_0->data_pcm16 + buffer_0->start_sample_offset;
-                s16 *samples_from = sound_buffer->samples;
-                u32 sample_count  = (buffer_0->end_sample_offset - buffer_0->start_sample_offset);
-
-                CopySize(samples_to, samples_from, sample_count * sizeof(s16));
-                armDCacheFlush(samples_to, sample_count * sizeof(s16));
-
-                audrvVoiceAddWaveBuf(&audio_state->driver, 0, buffer_0);
-            }
-
-            // Segment two
-            //
-            u32 sample_offset = (audio_state->max_sample_count - audio_state->sample_index);
-
-            AudioDriverWaveBuf *buffer_1  = SwitchGetFreeAudioBuffer(audio_state);
-            if (buffer_1) {
-                buffer_1->start_sample_offset = 0;
-                buffer_1->end_sample_offset   = samples_to_write - sample_offset;
-
-                s16 *samples_to   = buffer_1->data_pcm16;
-                s16 *samples_from = sound_buffer->samples + sample_offset;
-                u32 sample_count  = buffer_1->end_sample_offset;
-
-                CopySize(samples_to, samples_from, sample_count * sizeof(s16));
-                armDCacheFlush(samples_to, sample_count * sizeof(s16));
-
-                audrvVoiceAddWaveBuf(&audio_state->driver, 0, buffer_1);
-            }
-
-            audio_state->sample_index = samples_to_write - sample_offset;
-        }
-        else {
-            printf("Outputting %d samples\n", samples_to_write);
-            // Segment one
-            //
-            AudioDriverWaveBuf *buffer_0 = SwitchGetFreeAudioBuffer(audio_state);
-            if (buffer_0) {
-                buffer_0->start_sample_offset = audio_state->sample_index;
-                buffer_0->end_sample_offset   = audio_state->sample_index + samples_to_write;
-
-                s16 *samples_to   = buffer_0->data_pcm16 + audio_state->sample_index;
-                s16 *samples_from = sound_buffer->samples;
-                u32 sample_count  = samples_to_write;
-
-                //printf("Copying samples!\n");
-
-                CopySize(samples_to, samples_from, sample_count * sizeof(s16));
-                armDCacheFlush(samples_to, sample_count * sizeof(s16));
-
-               // printf("Queuing buffer!\n");
-                // Queue the buffer
-                //
-                audrvVoiceAddWaveBuf(&audio_state->driver, 0, buffer_0);
-            }
-
-            audio_state->sample_index += samples_to_write;
-            audio_state->sample_index %= audio_state->max_sample_count;
-
-        }
-
-        audio_state->write_cursor += samples_to_write;
-    }
-
-    printf("Updating... ");
-//    audrvUpdate(&audio_state->driver);
-    printf("Finished!\n\n");
-#if 0
-    AudioDriverWaveBuf *buffer = audio_state->current_buffer;
-    if (!buffer) {
-        buffer = SwitchGetFreeAudioBuffer(audio_state);
-        if (!buffer) {
-            printf("Warning: No audio buffer free\n");
-            audrvUpdate(&audio_state->driver);
-            return;
-        }
-
-        audio_state->current_buffer  = buffer;
-        // audio_state->samples_written = 0;
-    }
-
-
-
-
-    if (samples_to_write > 0) {
-        samples_to_write = Min(cast(u32) samples_to_write, audio_state->max_sample_count - audio_state->samples_written);
-
-        sound_buffer->sample_count = samples_to_write;
-        sound_buffer->samples      = audio_state->sample_buffer;
-
-        LudumOutputSoundSamples(context, sound_buffer);
-
-        // This copy is dumb
-        //
-        s16 *output_samples = cast(s16 *) buffer->data_raw;
-        u32 sample_offset   = buffer->start_sample_offset + (audio_state->write_cursor % audio_state->max_sample_count);
-        for (u32 it = 0; it < sound_buffer->sample_count; ++it) {
-            u32 sample_index = (sample_offset + it);
-
-            output_samples[(sample_index + 0) % audio_state->max_sample_count] = sound_buffer->samples[it];
-        }
-
-        armDCacheFlush(output_samples, sound_buffer->sample_count * sizeof(s16));
-
-        audio_state->write_cursor    += sound_buffer->sample_count;
-        audio_state->samples_written += sound_buffer->sample_count;
-
-        if (audio_state->samples_written >= audio_state->max_sample_count) {
-            audrvVoiceStop(&audio_state->driver, 0);
-            audrvVoiceAddWaveBuf(&audio_state->driver, 0, buffer);
-            audrvVoiceStart(&audio_state->driver, 0);
-
-            audio_state->current_buffer  = 0;
-            audio_state->samples_written = 0;
-        }
-    }
-#endif
-
-#if 0
-    if (buffer->state == AudioDriverWaveBufState_Free || buffer->state == AudioDriverWaveBufState_Done) {
-        audrvVoiceStop(&audio_state->driver, 0);
-        audrvVoiceAddWaveBuf(&audio_state->driver, 0, buffer);
-        audrvVoiceStart(&audio_state->driver, 0);
-    }
-#endif
-
-#if 0
-    AudioDriverWaveBuf *buffer = 0;
-    s32 index = audio_state->current_buffer_index;
-
-    if (index < 0) {
-        index = SwitchGetFreeAudioBuffer(audio_state);
-        if (index < 0) {
-            audrvUpdate(&audio_state->driver);
-            return;
-        }
-
-        printf("Using buffer index %d\n", index);
-
-        audio_state->current_buffer_index = index;
-
-        buffer = &audio_state->buffers[index];
-        buffer->end_sample_offset = buffer->start_sample_offset;
+    if (audio_state->enabled) {
+        audrvUpdate(&audio_state->driver);
+        audrenWaitFrame();
 
         audrvVoiceStop(&audio_state->driver, 0);
+
+        audrenStopAudioRenderer();
+
+        audrvSinkRemove(&audio_state->driver, audio_state->sink);
+
+        audrvMemPoolDetach(&audio_state->driver, audio_state->mem_pool_id);
+        audrvMemPoolRemove(&audio_state->driver, audio_state->mem_pool_id);
+
+        void *mem_pool = cast(void *) audio_state->buffers[0].data_raw;
+        free(mem_pool);
+
+        audrvClose(&audio_state->driver);
+
+        audrenExit();
     }
-    else {
-        buffer = &audio_state->buffers[index];
-    }
-
-    s32 other_index = (index == 0) ? 1 : 0;
-
-    u32 samples_played = 0;
-    if (audrvVoiceIsPlaying(&audio_state->driver, other_index)) {
-        samples_played = audrvVoiceGetPlayedSampleCount(&audio_state->driver, other_index);
-    }
-    else {
-        samples_played = audio_state->max_sample_count;
-    }
-
-    u32 samples_this_frame = samples_played; //(1000 / 60);
-    u32 current_samples = SwitchGetAudioBufferSampleCount(buffer);
-    if ((samples_this_frame + current_samples) > audio_state->max_sample_count) {
-        samples_this_frame = audio_state->max_sample_count - current_samples;
-    }
-
-    sound_buffer->sample_count = samples_this_frame;
-    sound_buffer->samples      = cast(s16 *) buffer->data_raw + buffer->end_sample_offset;
-    LudumOutputSoundSamples(context, sound_buffer);
-
-    buffer->end_sample_offset += samples_this_frame;
-
-    current_samples += samples_this_frame;
-    if (current_samples >= audio_state->max_sample_count) {
-        void *samples = cast(void *) (cast(u8 *) buffer->data_raw + buffer->start_sample_offset);
-        armDCacheFlush(samples, audio_state->max_sample_count);
-
-        audrvVoiceAddWaveBuf(&audio_state->driver, 0, buffer);
-        audrvVoiceStart(&audio_state->driver, 0);
-
-        audio_state->current_buffer_index = -1;
-    }
-
-    audrvUpdate(&audio_state->driver);
-#endif
 }
-#endif
 
-internal void SDL2OutputSounds(Game_Context *context, Sound_Buffer *sound_buffer) {
-    const u32 max_sample_count = 12000;
-    umm frame_sample_size = (max_sample_count * sizeof(s16)) - SDL_GetQueuedAudioSize(global_audio_device);
+internal void SwitchOutputSounds(Switch_Audio_State *audio_state, Game_Context *context, Sound_Buffer *sound_buffer) {
+    u32 samples_to_queue = audio_state->max_sample_count - __atomic_load_n(&audio_state->samples_queued, __ATOMIC_SEQ_CST);
+    if (samples_to_queue == 0) { return; } // Nothing to do
 
-    sound_buffer->sample_count = frame_sample_size / sizeof(s16);
+    sound_buffer->sample_count = samples_to_queue;
     LudumOutputSoundSamples(context, sound_buffer);
 
-    if (global_audio_device != 0) {
-        SDL_QueueAudio(global_audio_device, sound_buffer->samples, frame_sample_size);
+    u32 write_cursor = audio_state->write_cursor;
+    if ((write_cursor + samples_to_queue) > audio_state->max_sample_count) {
+        // Copy the first chunk to the end of the ring buffer
+        //
+        s16 *samples_dst = &audio_state->sample_queue[write_cursor];
+        s16 *samples_src = sound_buffer->samples;
+        u32 sample_count = (audio_state->max_sample_count - write_cursor);
+
+        CopySize(samples_dst, samples_src, sample_count * sizeof(s16));
+
+        armDCacheFlush(samples_dst, sample_count * sizeof(s16));
+
+        // Copy the second wrapped portion of the ring buffer
+        //
+        //
+        samples_dst  = audio_state->sample_queue;
+        samples_src  = &sound_buffer->samples[sample_count];
+        sample_count = samples_to_queue - sample_count;
+
+        CopySize(samples_dst, samples_src, sample_count * sizeof(s16));
+
+        armDCacheFlush(samples_dst, sample_count * sizeof(s16));
     }
+    else {
+        // Single chunk copy
+        //
+        s16 *samples = &audio_state->sample_queue[write_cursor];
+        CopySize(samples, sound_buffer->samples, samples_to_queue * sizeof(s16));
+
+        armDCacheFlush(samples, samples_to_queue * sizeof(s16));
+    }
+
+    __atomic_add_fetch(&audio_state->samples_queued, samples_to_queue, __ATOMIC_SEQ_CST);
+
+    audio_state->write_cursor += samples_to_queue;
+    audio_state->write_cursor %= audio_state->max_sample_count;
 }
 
 internal b32 SwitchInitialise() {
@@ -800,29 +609,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
-        printf("Failed to init audio\n");
-        return 1;
-    }
-
-    SDL_AudioSpec desired;
-    SDL_AudioSpec acquired;
-
-    desired.freq     = 48000;
-    desired.format   = AUDIO_S16LSB;
-    desired.channels = 2;
-    desired.samples  = 1024;
-    desired.callback = 0;
-    desired.userdata = 0;
-
-    global_audio_device = SDL_OpenAudioDevice(0, 0, &desired, &acquired, 0);
-    if (global_audio_device != 0) {
-        SDL_PauseAudioDevice(global_audio_device, 0);
-    }
-    else {
-        printf("Couldn't get audio device\n");
-    }
-
     Renderer_Parameters params = {};
     params.command_buffer_size          = Megabytes(1);
     params.max_immediate_vertex_count   = (1 << 17);
@@ -860,67 +646,86 @@ int main(int argc, char **argv) {
     context->state          = 0;
     context->texture_buffer = &renderer->texture_buffer;
 
+    Switch_Audio_State audio_state = {};
+    if (!SwitchInitialiseAudio(&audio_state)) {
+        printf("[Error] :: Failed to initialise audio\n");
+        return 1;
+    }
+
     Sound_Buffer sound_buffer = {};
     sound_buffer.sample_count = 12000;
     sound_buffer.samples      = cast(s16 *) malloc(sound_buffer.sample_count * sizeof(s16));
-
-#if 0
-    Switch_Audio_State audio_state = {};
-    if (!SwitchInitialiseAudio(&audio_state)) {
-        printf("[Warning] :: Audio disabled. Failed to initialise\n");
-        return 1;
-    }
-#endif
+    ZeroSize(sound_buffer.samples, sound_buffer.sample_count * sizeof(s16));
 
     b32 running = true;
 
+    // We have to render a single frame up front as there is a bug? or "optitimsation"? with egl where it will not
+    // swap buffers (and thus wait for vsync) if no OpenGL calls are issued.
+    //
+    rect2 render_region;
+    v2u window_size = SwitchGetWindowSize();
+
+    v2 render_size;
+    render_size.x = 4 * (window_size.y / 3);
+    render_size.y = window_size.y;
+
+    render_region.min = (0.5 * (V2(window_size) - render_size));
+    render_region.max = render_region.min + render_size;
+
+    Draw_Command_Buffer *command_buffer = renderer->BeginFrame(renderer, render_region);
+    LudumUpdateRender(context, current_input, command_buffer);
+
     u64 start = SwitchGetCurrentTicks();
+
+    f64 fixed_dt = 1.0f / 60.0f;
+    f64 accum    = 0;
+
     while (running) {
         {
             u64 end = SwitchGetCurrentTicks();
-            current_input->delta_time = SwitchGetElapsedTime(start, end);
+            f64 dt  = SwitchGetElapsedTime(start, end);
 
             start = end;
+
+            accum += dt;
+
+            current_input->time = prev_input->time;
+            current_input->time += dt;
         }
 
         SwitchHandleInput(&pad, current_input, prev_input);
         if (current_input->requested_quit) { running = false; }
 
-        rect2 render_region;
-        v2u window_size = SwitchGetWindowSize();
+        window_size = SwitchGetWindowSize();
 
-        v2 render_size;
         render_size.x = 4 * (window_size.y / 3);
         render_size.y = window_size.y;
 
         render_region.min = (0.5 * (V2(window_size) - render_size));
         render_region.max = render_region.min + render_size;
 
-        Draw_Command_Buffer *command_buffer = renderer->BeginFrame(renderer, render_region);
+        while (accum >= fixed_dt) {
+            command_buffer = renderer->BeginFrame(renderer, render_region);
 
-        // @Todo(James): Fix clock. This doesn't have any sort of time synchronisation
-        //
-        LudumUpdateRender(context, current_input, command_buffer);
-        if (current_input->requested_quit) { running = false; }
+            current_input->delta_time = fixed_dt;
+
+            LudumUpdateRender(context, current_input, command_buffer);
+            if (current_input->requested_quit) { running = false; }
+
+            accum -= fixed_dt;
+            if (accum < 0) { accum = 0; }
+        }
+
+        SwitchOutputSounds(&audio_state, context, &sound_buffer);
 
         renderer->EndFrame(renderer, command_buffer);
-
-        SDL2OutputSounds(context, &sound_buffer);
 
         Swap(current_input, prev_input);
     }
 
     renderer->Shutdown(renderer);
 
-#if 0
-    threadClose(&audio_state.thread);
-
-    audrvClose(&audio_state.driver);
-    audrenExit();
-#endif
-
-    SDL_CloseAudioDevice(global_audio_device);
-    SDL_Quit();
+    SwitchShutdownAudio(&audio_state);
 
     if (global_nxlink_socket >= 0) {
         close(global_nxlink_socket);

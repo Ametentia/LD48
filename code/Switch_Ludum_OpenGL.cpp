@@ -39,7 +39,7 @@ internal RENDERER_END_FRAME(SwitchOpenGLEndFrame) {
     OpenGL_State *gl = cast(OpenGL_State *) renderer;
     OpenGLEndFrame(gl, buffer);
 
-    eglSwapBuffers(eglGetCurrentDisplay(), eglGetCurrentSurface(EGL_DRAW));
+    eglSwapBuffers(global_display, global_surface);
 }
 
 internal RENDERER_SHUTDOWN(SwitchOpenGLShutdown) {

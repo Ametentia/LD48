@@ -51,6 +51,8 @@ struct Mode_Battle {
 
     Animation transition;
 
+    u32 debug_markers;
+
     f32 bpm;
     f32 timer;
 
@@ -80,4 +82,5 @@ struct Mode_Battle {
     Image_Handle enemy_texture;
     Image_Handle enemy_hud;
 };
+
 #endif  // LUDUM_MODE_BATTLE_H_

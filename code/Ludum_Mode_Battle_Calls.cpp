@@ -23,7 +23,7 @@ internal Call CreateCall(Asset_Manager *assets, Random *random) {
     u32 hit   = 0;
 
     for (u32 i = 0; i < 10; i++) {
-        if (NextRandom(random) % 20 < 10 - hit) {
+        if (NextRandom(random) % 25 < (10 - hit)) {
             result.beats[count] = i * 0.25f;
 
             count += 1;

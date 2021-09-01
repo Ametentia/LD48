@@ -26,7 +26,7 @@ struct Enemy {
     b32 alive;
 };
 
-struct Item{
+struct Item {
     umm cost;
     f32 steal_chance;
     u32 flags;

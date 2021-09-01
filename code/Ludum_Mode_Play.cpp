@@ -16,9 +16,6 @@ internal void ModePlay(Game_State *state) {
 
     World *world = &play->world;
 
-    Player *player = &play->player;
-    play->health = 4;
-
     // Setup walk animations
     //
     world->player_animations[0] = CreateAnimation(GetImageByName(&state->assets, "forward_walk"),  4, 1, 0.18);
@@ -47,19 +44,18 @@ internal void ModePlay(Game_State *state) {
 
     play->level_state = LevelState_TransitionOut;
 
-
     // Player
     //
+    Player *player = &play->player;
+
+    play->health     = 4;
     player->room     = &world->rooms[0];
     player->grid_pos = V2S(player->room->dim.x / 2, player->room->dim.y / 2);
     player->last_pos = player->grid_pos;
     player->money    = 100;
     player->carrying = false;
-    player->item = {
-        0,
-        0,
-        0
-    };
+    player->item     = { 0, 0, 0 };
+
     player->repellant_active = false;
     player->repellant_timer = 0;
 
@@ -90,6 +86,29 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
             play->music = PlaySound(state, world_music, 0.2, PlayingSound_Looped);
 
             if (play->health <= 0) { play->end_screen = 2; }
+
+            Player *player = &play->player;
+
+            Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
+            player_tile->flags &= ~TileFlag_HasEnemy;
+
+            for (u32 it = 0; it < world->enemy_count; ++it) {
+                Enemy *enemy = &world->enemies[it];
+
+                // @Todo: This might cause multiple enemies or the incorrect enemy to be killed
+                //
+                if (IsEqual(enemy->grid_pos, player->grid_pos) || IsEqual(enemy->last_pos, player->grid_pos)) {
+                    enemy->alive = false;
+
+                    Tile *current = GetTileFromRoom(enemy->room, enemy->grid_pos.x, enemy->grid_pos.y);
+                    Tile *last    = GetTileFromRoom(enemy->room, enemy->last_pos.x, enemy->last_pos.x);
+
+                    current->flags &= ~TileFlag_HasEnemy;
+                    last->flags    &= ~TileFlag_HasEnemy;
+
+                    break;
+                }
+            }
 
             EndTemp(play->battle_mem);
         }
@@ -136,7 +155,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
      if (player->repellant_active) {
         player->repellant_timer -= dt;
-        if (player->repellant_timer <= 0){
+        if (player->repellant_timer <= 0) {
            player->repellant_active = false;
         }
     }
@@ -172,7 +191,7 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
             play->music->volume = 0;
             play->music->flags  = 0;
 
-            // play->level_state = LevelState_TransitionBattle;
+           // play->level_state = LevelState_TransitionBattle;
         }
         else {
             Tile *last_tile = GetTileFromRoom(player->room, player->last_pos.x, player->last_pos.y);
@@ -236,37 +255,33 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
         Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
 
         umm cost = 10;
-        if(player_tile->flags&TileFlag_ShopItem){
+        if (player_tile->flags & TileFlag_ShopItem) {
             if(player->money >= cost && !player->carrying){
                 player->carrying = true;
-                player->item = {
-                    10,
-                    0.2f,
-                    player_tile->flags
-                };
-                player_tile->flags = TileFlag_ShopEmpty;
-                player_tile->shop_sprite = {0};
+                player->item     = { 10, 0.2f, player_tile->flags };
+
+                player_tile->flags       = TileFlag_ShopEmpty;
+                player_tile->shop_sprite = { 0 };
             }
         }
     }
+
     if (JustPressed(controller->action)) {
         Tile *above_player = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y+1);
-        if(above_player->flags&TileFlag_HasHermes && player->carrying){
+
+        if ((above_player->flags & TileFlag_HasHermes) && player->carrying) {
             player->money -= player->item.cost;
-            if(player->item.flags & (ItemFlag_ExtraString|ItemFlag_StringReinforcement)){
-                if(play->health != 4){
-                    play->health++;
-                }
+
+            if (player->item.flags & (ItemFlag_ExtraString | ItemFlag_StringReinforcement)) {
+                if (play->health != 4) { play->health += 1; }
             }
-            if(player->item.flags&ItemFlag_Repellant){
+
+            if (player->item.flags & ItemFlag_Repellant) {
                 player->repellant_active = true;
-                player->repellant_timer = 30;
+                player->repellant_timer  = 30;
             }
-            player->item = {
-                0,
-                0,
-                0
-            };
+
+            player->item     = {};
             player->carrying = false;
         }
     }
@@ -280,18 +295,30 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
     //
     DrawRoom(batch, world, player->room);
 
-    if(player->carrying){
+    if (player->carrying) {
         Tile *tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
+
         if(tile->flags & (TileFlag_ShopItem | TileFlag_ShopEmpty)) {
-            DrawQuad(batch, GetImageByName(&state->assets, "pay"), V3(player->room->hermes.pos.x,player->room->hermes.pos.y+0.5,0),V2(1,0.5));
+            v3 pay_pos = V3(player->room->hermes.pos, 0) + V3(0, 0.5, 0);
+            Image_Handle pay_image = GetImageByName(&state->assets, "pay");
+
+            DrawQuad(batch, pay_image, pay_pos, V2(1, 0.5));
         }
     }
 
     UpdateAnimation(&world->enemy_animation, dt);
-    if(player->room->flags & RoomFlag_IsShop) { UpdateAnimation(&player->room->hermes.anim, dt); }
+    if (player->room->flags & RoomFlag_IsShop) { UpdateAnimation(&player->room->hermes.anim, dt); }
 
+    v4 player_c = V4(1, 1, 1, 1);
+    if (player->repellant_active) {
+        player_c = V4(0.8, 0.8, 0.8, 0.60);
 
-    DrawAnimation(batch, player->animation, V3(player_world_pos), world->tile_size);
+        if (player->repellant_timer < 5.0f) {
+            player_c = Lerp(player_c, V4(1, 1, 1, 1), Abs(Sin(4.1 * input->time)));
+        }
+    }
+
+    DrawAnimation(batch, player->animation, V3(player_world_pos), world->tile_size, 0, player_c);
 
     UpdateRenderEnemies(batch, world, dt, player->room);
 
@@ -363,17 +390,6 @@ internal void UpdateRenderModePlay(Game_State *state, Game_Input *input, Draw_Co
 
                 play->music->volume = 0;
                 play->music->flags  = 0;
-
-                Tile *player_tile = GetTileFromRoom(player->room, player->grid_pos.x, player->grid_pos.y);
-                player_tile->flags &= ~TileFlag_HasEnemy;
-
-                for (u32 it = 0; it < world->enemy_count; ++it) {
-                    Enemy *enemy = &world->enemies[it];
-
-                    if (IsEqual(enemy->grid_pos, player->grid_pos)) {
-                        enemy->alive = false;
-                    }
-                }
 
                 ResetAnimation(&play->transition_out);
                 return;

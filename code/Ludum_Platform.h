@@ -40,6 +40,7 @@ struct Game_Controller {
 };
 
 struct Game_Input {
+    f64 time;
     f64 delta_time;
     b32 requested_quit;
 

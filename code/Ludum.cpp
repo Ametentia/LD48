@@ -47,6 +47,7 @@ internal void LudumUpdateRender(Game_Context *context, Game_Input *input, Draw_C
 
 internal void LudumOutputSoundSamples(Game_Context *context, Sound_Buffer *buffer) {
     Game_State *state = context->state;
+    if (!state) { return; }
 
     Temporary_Memory mixer_temp = BeginTemp(state->temp);
 

@@ -14,7 +14,7 @@ Includes="-isystem $DevkitPath/libnx/include -isystem $DevkitPath/portlibs/switc
 
 # Linker flags
 LinkerFlags="-specs=$DevkitPath/libnx/switch.specs -g $Arch -Wl,-Map,Switch_Test.map"
-Libs="-L$DevkitPath/libnx/lib -L$DevkitPath/portlibs/switch/lib -lSDL2 -lEGL -lGLESv2 -lglapi -ldrm_nouveau -lnx -lm"
+Libs="-L$DevkitPath/libnx/lib -L$DevkitPath/portlibs/switch/lib -lEGL -lGLESv2 -lglapi -ldrm_nouveau -lnx -lm"
 
 pushd "../build"
 
