@@ -259,7 +259,7 @@ internal void UpdateRenderModeBattle(Game_State *state, Game_Input *input,
         if ((player_beat + 1) > cast(s32) call->beats_shown) { call->beats_shown = player_beat + 1; }
 
         u32 beat_index = player_beat % beat_count;
-        b32 visible    = call->visible[beat_index] == true;
+        b32 visible    = (call->visible[beat_index] != 0) && (call->visible[beat_index] != 100);
         Button button  = call->beat_buttons[beat_index];
 
         if (JustPressed(controller->buttons[button]) && !visible) {

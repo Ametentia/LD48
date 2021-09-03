@@ -343,16 +343,39 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     //
     b32 running = true;
 
+    rect2 render_region;
+    v2u window_size = SDL2GetWindowSize();
+
+    v2 render_size;
+    render_size.x = 4 * (window_size.y / 3);
+    render_size.y = window_size.y;
+
+    render_region.min = (0.5 * (V2(window_size) - render_size));
+    render_region.max = render_region.min + render_size;
+
+    Draw_Command_Buffer *command_buffer = renderer->BeginFrame(renderer, render_region);
+    LudumUpdateRender(context, current_input, command_buffer);
+
     // Begin timing information
     //
     u64 start = SDL2GetCurrentTicks();
+
+    f64 fixed_dt = 1.0f / 60.0f;
+    f64 accum    = 0;
+
     while (running) {
         {
             // Delta time calculation
             //
             u64 end = SDL2GetCurrentTicks();
-            current_input->delta_time = SDL2GetElapsedTime(start, end);
+            f64 dt  = SDL2GetElapsedTime(start, end);
+
             start = end;
+
+            accum += dt;
+
+            current_input->time = prev_input->time;
+            current_input->time += fixed_dt;
         }
 
         SDL2HandleInput(current_input, prev_input);
@@ -362,22 +385,25 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         //
         if (current_input->requested_quit) { running = false; }
 
-        rect2 render_region;
-        v2u window_size = SDL2GetWindowSize();
+        window_size = SDL2GetWindowSize();
 
-        v2 render_size;
         render_size.x = 4 * (window_size.y / 3);
         render_size.y = window_size.y;
 
         render_region.min = (0.5 * (V2(window_size) - render_size));
         render_region.max = render_region.min + render_size;
 
-        Draw_Command_Buffer *command_buffer = renderer->BeginFrame(renderer, render_region);
+        while (accum >= fixed_dt) {
+            command_buffer = renderer->BeginFrame(renderer, render_region);
 
-        // @Todo(James): Fix clock. This doesn't have any sort of time synchronisation
-        //
-        LudumUpdateRender(context, current_input, command_buffer);
-        if (current_input->requested_quit) { running = false; }
+            current_input->delta_time = fixed_dt;
+
+            LudumUpdateRender(context, current_input, command_buffer);
+            if (current_input->requested_quit) { running = false; }
+
+            accum -= fixed_dt;
+            if (accum < 0) { accum = 0; }
+        }
 
         SDL2OutputSounds(context, sound_buffer);
 
